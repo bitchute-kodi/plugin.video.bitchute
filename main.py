@@ -11,6 +11,7 @@ import xbmcplugin
 import re
 import requests
 from bs4 import BeautifulSoup
+import subprocess
 
 # Get the plugin url in plugin:// notation.
 _url = sys.argv[0]
@@ -236,10 +237,36 @@ def play_video(path):
     :param path: str
     :return: None
     """
-    # Create a playable item with a path to play.
-    play_item = xbmcgui.ListItem(path=path)
-    # Pass the item to the Kodi player.
-    xbmcplugin.setResolvedUrl(_handle, True, listitem=play_item)
+    print(path)
+    playing = 0
+    # start webtorrent fetching path
+    output = ""
+    cnt = 0
+    dlnaUrl = None
+    webTorrentClient = subprocess.Popen(["/usr/local/bin/webtorrent-hybrid", path, "--dlna"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    print("running with PID " + str(webTorrentClient.pid))
+    for stdout_line in webTorrentClient.stdout:
+        output += stdout_line.decode()
+        cnt += 1
+        if cnt > 10:
+            break
+    #webTorrentClient.stdout.close()
+
+    dlnaMatches = re.search('http:\/\/((\w|\d)+(\.)*)+:\d+\/\d+', output)
+    if dlnaMatches:
+        dlnaUrl = dlnaMatches.group()
+    else:
+        webTorrentClient.terminate()
+        raise ValueError("could not determine the dlna URL.")
+
+    print("Streaming at: " + dlnaUrl)
+
+    while webTorrentClient.poll() == None:
+        if playing == 0:
+            playing = 1
+            play_item = xbmcgui.ListItem(path=dlnaUrl)
+            # Pass the item to the Kodi player.
+            xbmcplugin.setResolvedUrl(_handle, True, listitem=play_item)
 
 
 def router(paramstring):
