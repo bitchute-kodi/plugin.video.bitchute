@@ -10,6 +10,8 @@ import xbmcgui
 import xbmcplugin
 import re
 import requests
+import json
+import time
 from bs4 import BeautifulSoup
 import subprocess
 
@@ -17,9 +19,8 @@ import subprocess
 _url = sys.argv[0]
 # Get the plugin handle as an integer number.
 _handle = int(sys.argv[1])
-
 baseUrl = "https://www.bitchute.com"
-subscriptions = ["InRangeTV", "mediamonarchy","corbettreport"]
+
 class VideoLink:
 	def __init__(self, containerSoup):
 		titleDiv = containerSoup.findAll('div', "channel-videos-title")[0]
@@ -101,6 +102,73 @@ class MyPlayer(xbmc.Player):
     
     def sleep(self, s):
         xbmc.sleep(s) 
+def login():
+	#BitChute uses a token to prevent csrf attacks, get the token to make our request.
+	r = requests.get(baseUrl)
+	csrfJar = r.cookies
+	soup = BeautifulSoup(r.text, 'html.parser')
+	csrftoken = soup.findAll("input", {"name":"csrfmiddlewaretoken"})[0].get("value")
+
+	#Fetch the user info from settings
+	username = xbmcplugin.getSetting(_handle, 'username')
+	password = xbmcplugin.getSetting(_handle, 'password')
+	post_data = {'csrfmiddlewaretoken': csrftoken, 'username': username, 'password': password}
+	headers = {'Referer': baseUrl + "/", 'Origin': baseUrl}
+	response = requests.post(baseUrl + "/accounts/login/", data=post_data, headers=headers, cookies=csrfJar)
+	authCookies = []
+	for cookie in response.cookies:
+		authCookies.append({ 'name': cookie.name, 'value': cookie.value, 'domain': cookie.domain, 'path': cookie.path, 'expires': cookie.expires })
+	
+	#stash our cookies in our JSON cookie jar
+	cookiesJson = json.dumps(authCookies)
+	xbmcplugin.setSetting(_handle, id='cookies', value=cookiesJson)
+	
+	return(authCookies)
+	
+def getSessionCookie():
+	cookiesString = xbmcplugin.getSetting(_handle, 'cookies')
+	if cookiesString:
+		cookies = json.loads(cookiesString)
+	else:
+		cookies = login()
+	
+	#If our cookies have expired we'll need to get new ones.
+	now = int(time.time())
+	for cookie in cookies:
+		if now >= cookie['expires']:
+			cookies = login()
+			break
+	
+	jar = requests.cookies.RequestsCookieJar()
+	for cookie in cookies:
+		jar.set(cookie['name'], cookie['value'], domain=cookie['domain'], path=cookie['path'], expires=cookie['expires'])
+	
+	return jar
+
+def fetchLoggedIn(url):
+	req = requests.get(url, cookies=sessionCookies)
+	soup = BeautifulSoup(req.text, 'html.parser')
+	loginUser = soup.findAll("div", {"class":"login-user"})
+	if loginUser:
+		profileLink = loginUser[0].findAll("a",{"class":"auth-link", "href":"/profile"})
+		if profileLink:
+			return req
+	#Our cookies have gone stale, clear them out.
+	xbmcplugin.setSetting(_handle, id='cookies', value='')
+	raise ValueError("Not currently logged in.")
+
+def getSubscriptions():
+	subscriptions = []
+	req = fetchLoggedIn(baseUrl + "/subscriptions")
+	soup = BeautifulSoup(req.text, 'html.parser')
+	for container in soup.findAll("div", {"class":"subscription-container"}):
+		for link in container.findAll("a", {"rel":"author"}):
+			name = link.get("href").split("/")[-1]
+			subscriptions.append(Channel(name))
+	return(subscriptions)
+
+sessionCookies = getSessionCookie()
+
 
 
 def get_categories():
@@ -111,9 +179,7 @@ def get_categories():
     from some site or server.
     :return: list
     """
-    categories = []
-    for subscription in subscriptions:
-        categories.append(Channel(subscription))
+    categories = getSubscriptions()
     return categories
 
 
