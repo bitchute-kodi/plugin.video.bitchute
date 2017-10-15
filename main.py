@@ -19,7 +19,7 @@ _url = sys.argv[0]
 _handle = int(sys.argv[1])
 
 baseUrl = "https://www.bitchute.com"
-subscriptions = ["InRangeTV", "mediamonarchy"]
+subscriptions = ["InRangeTV", "mediamonarchy","corbettreport"]
 class VideoLink:
 	def __init__(self, containerSoup):
 		titleDiv = containerSoup.findAll('div', "channel-videos-title")[0]
@@ -73,54 +73,34 @@ class Channel:
 		for video in self.videos:
 			video.setUrl(self.id)
 
-
-# Free sample videos are provided by www.vidsplay.com
-# Here we use a fixed set of properties simply for demonstrating purposes
-# In a "real life" plugin you will need to get info and links to video files/streams
-# from some web-site or online service.
-VIDEOS = {'Animals': [{'name': 'Crab',
-                       'thumb': 'http://www.vidsplay.com/vids/crab.jpg',
-                       'video': 'http://www.vidsplay.com/vids/crab.mp4',
-                       'genre': 'Animals'},
-                      {'name': 'Alligator',
-                       'thumb': 'http://www.vidsplay.com/vids/alligator.jpg',
-                       'video': 'http://www.vidsplay.com/vids/alligator.mp4',
-                       'genre': 'Animals'},
-                      {'name': 'Turtle',
-                       'thumb': 'http://www.vidsplay.com/vids/turtle.jpg',
-                       'video': 'http://www.vidsplay.com/vids/turtle.mp4',
-                       'genre': 'Animals'},
-                      {'name': 'Coot',
-                       'thumb': 'http://www.vidsplay.com/vids/turtle.jpg',
-                       'video': 'http://www.vidsplay.com/vids/turtle.mp4',
-                       'genre': 'Animals'}
-                      ],
-            'Cars': [{'name': 'Postal Truck',
-                      'thumb': 'http://www.vidsplay.com/vids/us_postal.jpg',
-                      'video': 'http://www.vidsplay.com/vids/us_postal.mp4',
-                      'genre': 'Cars'},
-                     {'name': 'Traffic',
-                      'thumb': 'http://www.vidsplay.com/vids/traffic1.jpg',
-                      'video': 'http://www.vidsplay.com/vids/traffic1.avi',
-                      'genre': 'Cars'},
-                     {'name': 'Traffic Arrows',
-                      'thumb': 'http://www.vidsplay.com/vids/traffic_arrows.jpg',
-                      'video': 'http://www.vidsplay.com/vids/traffic_arrows.mp4',
-                      'genre': 'Cars'}
-                     ],
-            'Food': [{'name': 'Chicken',
-                      'thumb': 'http://www.vidsplay.com/vids/chicken.jpg',
-                      'video': 'http://www.vidsplay.com/vids/bbqchicken.mp4',
-                      'genre': 'Food'},
-                     {'name': 'Hamburger',
-                      'thumb': 'http://www.vidsplay.com/vids/hamburger.jpg',
-                      'video': 'http://www.vidsplay.com/vids/hamburger.mp4',
-                      'genre': 'Food'},
-                     {'name': 'Pizza',
-                      'thumb': 'http://www.vidsplay.com/vids/pizza.jpg',
-                      'video': 'http://www.vidsplay.com/vids/pizza.mp4',
-                      'genre': 'Food'}
-                     ]}
+class MyPlayer(xbmc.Player):
+    def __init__( MyPlayer, *args, **kwargs ):
+        MyPlayer.is_active = True
+        print("#MyPlayer#")
+    
+    def onPlayBackPaused( self ):
+        xbmc.log("#Im paused#")
+        
+    def onPlayBackResumed( self ):
+        xbmc.log("#Im Resumed #")
+        
+    def onPlayBackStarted( self ):
+        print("#Playback Started#")
+        try:
+            print("#Im playing :: " + self.getPlayingFile())
+        except:
+            print("#I failed get what Im playing#")
+            
+    def onPlayBackEnded( self ):
+        print("#Playback Ended#")
+        self.is_active = False
+        
+    def onPlayBackStopped( self ):
+        print("## Playback Stopped ##")
+        self.is_active = False
+    
+    def sleep(self, s):
+        xbmc.sleep(s) 
 
 
 def get_categories():
@@ -264,10 +244,20 @@ def play_video(path):
     while webTorrentClient.poll() == None:
         if playing == 0:
             playing = 1
-            play_item = xbmcgui.ListItem(path=dlnaUrl)
-            # Pass the item to the Kodi player.
-            xbmcplugin.setResolvedUrl(_handle, True, listitem=play_item)
+            playWithCustomPlayer(dlnaUrl, webTorrentClient)
 
+def playWithCustomPlayer(url, webTorrentClient):
+    play_item = xbmcgui.ListItem(path=url)
+    # Pass the item to our Kodi player with event handlers.
+    player = MyPlayer(xbmc.PLAYER_CORE_DVDPLAYER)
+    player.play( url, play_item )
+    xbmcplugin.setResolvedUrl(_handle, True, listitem=play_item)
+    
+    while player.is_active:
+        player.sleep(100)
+
+    webTorrentClient.terminate()
+    
 
 def router(paramstring):
     """
