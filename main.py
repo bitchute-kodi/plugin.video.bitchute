@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 # Module: default
-# Author: Roman V. M.
-# Created on: 28.11.2014
-# License: GPL v.3 https://www.gnu.org/copyleft/gpl.html
+# Author: Jason Francis
+# Created on: 2017-10-15
+# Based on plugin.video.example(https://github.com/romanvm/plugin.video.example)
+# License: MIT https://opensource.org/licenses/MIT
 
 import sys
 from urlparse import parse_qsl
 import xbmcgui
 import xbmcplugin
+import xbmcaddon
 import re
 import requests
 import json
@@ -20,6 +22,7 @@ _url = sys.argv[0]
 # Get the plugin handle as an integer number.
 _handle = int(sys.argv[1])
 baseUrl = "https://www.bitchute.com"
+addon = xbmcaddon.Addon()
 
 class VideoLink:
 	def __init__(self, containerSoup):
@@ -121,8 +124,8 @@ def login():
 	
 	#stash our cookies in our JSON cookie jar
 	cookiesJson = json.dumps(authCookies)
-	xbmcplugin.setSetting(_handle, id='cookies', value=cookiesJson)
-	
+	addon.setSetting(id='cookies', value=cookiesJson)
+
 	return(authCookies)
 	
 def getSessionCookie():
@@ -171,7 +174,7 @@ sessionCookies = getSessionCookie()
 
 
 
-def get_categories():
+def getCategories():
     """
     Get the list of video categories.
     Here you can insert some parsing code that retrieves
@@ -183,7 +186,7 @@ def get_categories():
     return categories
 
 
-def get_videos(categoryName):
+def getVideos(categoryName):
     """
     Get the list of videofiles/streams.
     Here you can insert some parsing code that retrieves
@@ -195,13 +198,13 @@ def get_videos(categoryName):
     return category.videos
 
 
-def list_categories():
+def listCategories():
     """
     Create the list of video categories in the Kodi interface.
     :return: None
     """
     # Get video categories
-    categories = get_categories()
+    categories = getCategories()
     # Create a list for our items.
     listing = []
     # Iterate through categories
@@ -234,14 +237,14 @@ def list_categories():
     xbmcplugin.endOfDirectory(_handle)
 
 
-def list_videos(categoryName):
+def listVideos(categoryName):
     """
     Create the list of playable videos in the Kodi interface.
     :param category: str
     :return: None
     """
     # Get the list of videos in the category.
-    videos = get_videos(categoryName)
+    videos = getVideos(categoryName)
     # Create a list for our items.
     listing = []
     # Iterate through videos.
@@ -277,12 +280,7 @@ def list_videos(categoryName):
     xbmcplugin.endOfDirectory(_handle)
 
 
-def play_video(path):
-    """
-    Play a video by the provided path.
-    :param path: str
-    :return: None
-    """
+def playVideo(path):
     print(path)
     playing = 0
     # start webtorrent fetching path
@@ -296,7 +294,6 @@ def play_video(path):
         cnt += 1
         if cnt > 10:
             break
-    #webTorrentClient.stdout.close()
 
     dlnaMatches = re.search('http:\/\/((\w|\d)+(\.)*)+:\d+\/\d+', output)
     if dlnaMatches:
@@ -339,14 +336,14 @@ def router(paramstring):
     if params:
         if params['action'] == 'listing':
             # Display the list of videos in a provided category.
-            list_videos(params['category'])
+            listVideos(params['category'])
         elif params['action'] == 'play':
             # Play a video from a provided URL.
-            play_video(params['video'])
+            playVideo(params['video'])
     else:
         # If the plugin is called from Kodi UI without any parameters,
         # display the list of video categories
-        list_categories()
+        listCategories()
 
 
 if __name__ == '__main__':
