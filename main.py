@@ -287,7 +287,7 @@ def playVideo(path):
     output = ""
     cnt = 0
     dlnaUrl = None
-    webTorrentClient = subprocess.Popen(["/usr/local/bin/webtorrent-hybrid", path, "--dlna"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    webTorrentClient = subprocess.Popen(["webtorrent-hybrid", path, "--dlna"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     print("running with PID " + str(webTorrentClient.pid))
     for stdout_line in webTorrentClient.stdout:
         output += stdout_line.decode()
