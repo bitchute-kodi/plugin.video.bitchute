@@ -78,7 +78,7 @@ class Channel:
 			video.setUrl(self.id)
 
 class MyPlayer(xbmc.Player):
-    def __init__( MyPlayer, *args, **kwargs ):
+    def __init__(self):
         MyPlayer.is_active = True
         print("#MyPlayer#")
     
@@ -311,8 +311,8 @@ def playVideo(path):
 
 def playWithCustomPlayer(url, webTorrentClient):
     play_item = xbmcgui.ListItem(path=url)
-    # Pass the item to our Kodi player with event handlers.
-    player = MyPlayer(xbmc.PLAYER_CORE_DVDPLAYER)
+    # Get an instance of xbmc.Player to work with.
+    player = MyPlayer()
     player.play( url, play_item )
     xbmcplugin.setResolvedUrl(_handle, True, listitem=play_item)
     
