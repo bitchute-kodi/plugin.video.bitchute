@@ -25,57 +25,83 @@ baseUrl = "https://www.bitchute.com"
 addon = xbmcaddon.Addon()
 
 class VideoLink:
-	def __init__(self, containerSoup):
-		titleDiv = containerSoup.findAll('div', "channel-videos-title")[0]
-		linkSoup = titleDiv.findAll('a')[0]
-		
-		self.title = linkSoup.string
-		self.pageUrl = linkSoup.get("href")
-		self.id = self.pageUrl.split("/")[-1]
-		self.thumbnail = None
-		self.url = None
-		#before we can find thumnails let's strip out play button images.
-		for playButton in containerSoup.findAll('img', "play-overlay-icon"):
-			playButton.extract()
-		
-		thumbnailMatches = containerSoup.findAll('img', "img-responsive")
-		
-		if thumbnailMatches:
-			self.thumbnail = baseUrl + thumbnailMatches[0].get("src")
+    def __init__(self, containerSoup):
+        titleDiv = containerSoup.findAll('div', "channel-videos-title")[0]
+        linkSoup = titleDiv.findAll('a')[0]
+        
+        self.title = linkSoup.string
+        self.pageUrl = linkSoup.get("href")
+        self.id = self.pageUrl.split("/")[-1]
+        self.thumbnail = None
+        self.url = None
+        #before we can find thumnails let's strip out play button images.
+        for playButton in containerSoup.findAll('img', "play-overlay-icon"):
+            playButton.extract()
+        
+        thumbnailMatches = containerSoup.findAll('img', "img-responsive")
+        
+        if thumbnailMatches:
+            self.thumbnail = baseUrl + thumbnailMatches[0].get("src")
 
-	def getUrl(self, channelId):
-		return(baseUrl + "/torrent/" + channelId + "/" + self.id + ".torrent")
-	def setUrl(self, channelId):
-		self.url = self.getUrl(channelId)
+    def getUrl(self, channelId):
+        return(baseUrl + "/torrent/" + channelId + "/" + self.id + ".torrent")
+    def setUrl(self, channelId):
+        self.url = self.getUrl(channelId)
 
 class Channel:
-	def __init__(self, channelName):
-		self.channelName = channelName
-		self.videos = []
-		self.thumbnail = None
+    def __init__(self, channelName, pageNumber = None):
+        self.channelName = channelName
+        self.videos = []
+        self.thumbnail = None
+        self.page = 1
+        if pageNumber is not None:
+            self.page = pageNumber
+        self.hasPrevPage = False
+        self.hasNextPage = False
 
-		r = requests.get(baseUrl + "/" + self.channelName)
-		soup = BeautifulSoup(r.text, 'html.parser')
+        self.setPage(self.page)
 
-		thumbnailImages = soup.findAll("img", id="fileupload-medium-icon-2")
-		if thumbnailImages:
-			self.thumbnail = baseUrl + thumbnailImages[0].get("src")
+    def setPage(self, pageNumber):
+        self.videos = []
+        self.thumbnail = None
+        self.page = pageNumber
+        self.hasPrevPage = False
+        self.hasNextPage = False
+        r = requests.get(baseUrl + "/" + self.channelName + "/?page=" + str(self.page))
+        soup = BeautifulSoup(r.text, 'html.parser')
 
-		for videoContainer in soup.findAll('div', "channel-videos-container"):
-			self.videos.append(VideoLink(videoContainer))
+        thumbnailImages = soup.findAll("img", id="fileupload-medium-icon-2")
+        if thumbnailImages:
+            self.thumbnail = baseUrl + thumbnailImages[0].get("src")
 
-		# for now I only know how to find the ID from a video, so take the last item
-		# in videos and find the channel's ID.
-		videoRequest = requests.get(baseUrl + self.videos[-1].pageUrl)
-		channelIdMatches = re.search('/torrent/\d+', videoRequest.text)
-		if channelIdMatches:
-			self.id = channelIdMatches.group().split("/")[-1]
-		else:
-			raise ValueError("channel Id not found for " + self.channelName + ".")
-		
-		# armed with a channelId we can set the url for all our videos.
-		for video in self.videos:
-			video.setUrl(self.id)
+        for videoContainer in soup.findAll('div', "channel-videos-container"):
+            self.videos.append(VideoLink(videoContainer))
+
+        paginationLists = soup.findAll("ul", "pagination")
+        for paginationList in paginationLists:
+            for page in paginationList.findAll("li"):
+                # skip any page number list items that have the "disabled" class.
+                if page.has_attr("class"):
+                    if "disabled" in page['class']:
+                        continue 
+                # it's not disabled, keep on trucking.
+                if page.findAll("i", "fa-angle-double-left"):
+                    self.hasPrevPage = True
+                if page.findAll("i", "fa-angle-double-right"):
+                    self.hasNextPage = True
+        
+        # for now I only know how to find the channel's ID from a video, so take the last item
+        # in videos and find the channel's ID.
+        videoRequest = requests.get(baseUrl + self.videos[-1].pageUrl)
+        channelIdMatches = re.search('/torrent/\d+', videoRequest.text)
+        if channelIdMatches:
+            self.id = channelIdMatches.group().split("/")[-1]
+        else:
+            raise ValueError("channel Id not found for " + self.channelName + ".")
+        
+        # armed with a channelId we can set the url for all our videos.
+        for video in self.videos:
+            video.setUrl(self.id)
 
 class MyPlayer(xbmc.Player):
     def __init__(self):
@@ -106,69 +132,69 @@ class MyPlayer(xbmc.Player):
     def sleep(self, s):
         xbmc.sleep(s) 
 def login():
-	#BitChute uses a token to prevent csrf attacks, get the token to make our request.
-	r = requests.get(baseUrl)
-	csrfJar = r.cookies
-	soup = BeautifulSoup(r.text, 'html.parser')
-	csrftoken = soup.findAll("input", {"name":"csrfmiddlewaretoken"})[0].get("value")
+    #BitChute uses a token to prevent csrf attacks, get the token to make our request.
+    r = requests.get(baseUrl)
+    csrfJar = r.cookies
+    soup = BeautifulSoup(r.text, 'html.parser')
+    csrftoken = soup.findAll("input", {"name":"csrfmiddlewaretoken"})[0].get("value")
 
-	#Fetch the user info from settings
-	username = xbmcplugin.getSetting(_handle, 'username')
-	password = xbmcplugin.getSetting(_handle, 'password')
-	post_data = {'csrfmiddlewaretoken': csrftoken, 'username': username, 'password': password}
-	headers = {'Referer': baseUrl + "/", 'Origin': baseUrl}
-	response = requests.post(baseUrl + "/accounts/login/", data=post_data, headers=headers, cookies=csrfJar)
-	authCookies = []
-	for cookie in response.cookies:
-		authCookies.append({ 'name': cookie.name, 'value': cookie.value, 'domain': cookie.domain, 'path': cookie.path, 'expires': cookie.expires })
-	
-	#stash our cookies in our JSON cookie jar
-	cookiesJson = json.dumps(authCookies)
-	addon.setSetting(id='cookies', value=cookiesJson)
+    #Fetch the user info from settings
+    username = xbmcplugin.getSetting(_handle, 'username')
+    password = xbmcplugin.getSetting(_handle, 'password')
+    post_data = {'csrfmiddlewaretoken': csrftoken, 'username': username, 'password': password}
+    headers = {'Referer': baseUrl + "/", 'Origin': baseUrl}
+    response = requests.post(baseUrl + "/accounts/login/", data=post_data, headers=headers, cookies=csrfJar)
+    authCookies = []
+    for cookie in response.cookies:
+        authCookies.append({ 'name': cookie.name, 'value': cookie.value, 'domain': cookie.domain, 'path': cookie.path, 'expires': cookie.expires })
+    
+    #stash our cookies in our JSON cookie jar
+    cookiesJson = json.dumps(authCookies)
+    addon.setSetting(id='cookies', value=cookiesJson)
 
-	return(authCookies)
-	
+    return(authCookies)
+    
 def getSessionCookie():
-	cookiesString = xbmcplugin.getSetting(_handle, 'cookies')
-	if cookiesString:
-		cookies = json.loads(cookiesString)
-	else:
-		cookies = login()
-	
-	#If our cookies have expired we'll need to get new ones.
-	now = int(time.time())
-	for cookie in cookies:
-		if now >= cookie['expires']:
-			cookies = login()
-			break
-	
-	jar = requests.cookies.RequestsCookieJar()
-	for cookie in cookies:
-		jar.set(cookie['name'], cookie['value'], domain=cookie['domain'], path=cookie['path'], expires=cookie['expires'])
-	
-	return jar
+    cookiesString = xbmcplugin.getSetting(_handle, 'cookies')
+    if cookiesString:
+        cookies = json.loads(cookiesString)
+    else:
+        cookies = login()
+    
+    #If our cookies have expired we'll need to get new ones.
+    now = int(time.time())
+    for cookie in cookies:
+        if now >= cookie['expires']:
+            cookies = login()
+            break
+    
+    jar = requests.cookies.RequestsCookieJar()
+    for cookie in cookies:
+        jar.set(cookie['name'], cookie['value'], domain=cookie['domain'], path=cookie['path'], expires=cookie['expires'])
+    
+    return jar
 
 def fetchLoggedIn(url):
-	req = requests.get(url, cookies=sessionCookies)
-	soup = BeautifulSoup(req.text, 'html.parser')
-	loginUser = soup.findAll("div", {"class":"login-user"})
-	if loginUser:
-		profileLink = loginUser[0].findAll("a",{"class":"dropdown-item", "href":"/profile"})
-		if profileLink:
-			return req
-	#Our cookies have gone stale, clear them out.
-	xbmcplugin.setSetting(_handle, id='cookies', value='')
-	raise ValueError("Not currently logged in.")
+    req = requests.get(url, cookies=sessionCookies)
+    soup = BeautifulSoup(req.text, 'html.parser')
+    loginUser = soup.findAll("div", {"class":"login-user"})
+    if loginUser:
+        profileLink = loginUser[0].findAll("a",{"class":"dropdown-item", "href":"/profile"})
+        if profileLink:
+            return req
+    #Our cookies have gone stale, clear them out.
+    xbmcplugin.setSetting(_handle, id='cookies', value='')
+    raise ValueError("Not currently logged in.")
 
 def getSubscriptions():
-	subscriptions = []
-	req = fetchLoggedIn(baseUrl + "/subscriptions")
-	soup = BeautifulSoup(req.text, 'html.parser')
-	for container in soup.findAll("div", {"class":"subscription-container"}):
-		for link in container.findAll("a", {"rel":"author"}):
-			name = link.get("href").split("/")[-1]
-			subscriptions.append(Channel(name))
-	return(subscriptions)
+    subscriptions = []
+    req = fetchLoggedIn(baseUrl + "/subscriptions")
+    soup = BeautifulSoup(req.text, 'html.parser')
+    for container in soup.findAll("div", {"class":"subscription-container"}):
+        for link in container.findAll("a", {"rel":"author"}):
+            name = link.get("href").split("/")[-1]
+            subscriptions.append(Channel(name))
+    return(subscriptions)
 
 sessionCookies = getSessionCookie()
 
@@ -237,14 +263,17 @@ def listCategories():
     xbmcplugin.endOfDirectory(_handle)
 
 
-def listVideos(categoryName):
+def listVideos(categoryName, pageNumber = None):
     """
     Create the list of playable videos in the Kodi interface.
     :param category: str
     :return: None
     """
+    if pageNumber is None:
+        pageNumber = 1
     # Get the list of videos in the category.
-    videos = getVideos(categoryName)
+    category = Channel(categoryName, pageNumber)
+    videos = category.videos
     # Create a list for our items.
     listing = []
     # Iterate through videos.
@@ -270,6 +299,12 @@ def listVideos(categoryName):
         is_folder = False
         # Add our item to the listing as a 3-element tuple.
         listing.append((url, list_item, is_folder))
+    # If the category has a next page add it to our listing.
+    if category.hasNextPage:
+        list_item = xbmcgui.ListItem(label="Next Page...")
+        url = '{0}?action=listing&category={1}&page={2}'.format(_url, category.channelName, category.page + 1)
+        listing.append((url, list_item, True))
+
     # Add our listing to Kodi.
     # Large lists and/or slower systems benefit from adding all items at once via addDirectoryItems
     # instead of adding one by ove via addDirectoryItem.
@@ -336,7 +371,7 @@ def router(paramstring):
     if params:
         if params['action'] == 'listing':
             # Display the list of videos in a provided category.
-            listVideos(params['category'])
+            listVideos(params['category'], int(params.get('page', '1')))
         elif params['action'] == 'play':
             # Play a video from a provided URL.
             playVideo(params['video'])
