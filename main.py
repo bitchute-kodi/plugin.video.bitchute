@@ -67,7 +67,7 @@ class Channel:
         self.page = pageNumber
         self.hasPrevPage = False
         self.hasNextPage = False
-        r = requests.get(baseUrl + "/" + self.channelName + "/?page=" + str(self.page))
+        r = fetchLoggedIn(baseUrl + "/" + self.channelName + "/?page=" + str(self.page))
         soup = BeautifulSoup(r.text, 'html.parser')
 
         thumbnailImages = soup.findAll("img", id="fileupload-medium-icon-2")
