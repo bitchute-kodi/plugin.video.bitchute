@@ -76,7 +76,7 @@ class Channel:
         self.page = pageNumber
         self.hasPrevPage = False
         self.hasNextPage = False
-        r = fetchLoggedIn(baseUrl + "/" + self.channelName + "/?page=" + str(self.page))
+        r = postLoggedIn(baseUrl + "/channel/" + self.channelName + "/extend/", baseUrl + "/channel/" + self.channelName + "/",{"offset": 10 * (self.page - 1)})
         soup = BeautifulSoup(r.text, 'html.parser')
 
         thumbnailImages = soup.findAll("img", id="fileupload-medium-icon-2")
@@ -182,7 +182,7 @@ def getSessionCookie():
 def fetchLoggedIn(url):
     req = requests.get(url, cookies=sessionCookies)
     soup = BeautifulSoup(req.text, 'html.parser')
-    loginUser = soup.findAll("div", {"class":"login-user"})
+    loginUser = soup.findAll("ul", {"class":"user-menu-dropdown"})
     if loginUser:
         profileLink = loginUser[0].findAll("a",{"class":"dropdown-item", "href":"/profile"})
         if profileLink:
@@ -190,6 +190,22 @@ def fetchLoggedIn(url):
     #Our cookies have gone stale, clear them out.
     xbmcplugin.setSetting(_handle, id='cookies', value='')
     raise ValueError("Not currently logged in.")
+
+def postLoggedIn(url, referer, params):
+	#BitChute uses a token to prevent csrf attacks, get the token to make our request.
+	csrftoken = None
+	for cookie in sessionCookies:
+		if cookie.name == 'csrftoken':
+			csrftoken = cookie.value
+			break
+
+	post_data = {'csrfmiddlewaretoken': csrftoken}
+	for param in params:
+		post_data[param] = params[param]
+
+	headers = {'Referer': referer, 'Host': 'www.bitchute.com', 'Origin': baseUrl, 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+	response = requests.post(url, data=post_data, headers=headers, cookies=sessionCookies)
+	return response
 
 def getSubscriptions():
     subscriptions = []
