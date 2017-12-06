@@ -90,18 +90,8 @@ class Channel:
         for videoContainer in soup.findAll('div', "channel-videos-container"):
             self.videos.append(VideoLink(videoContainer))
 
-        paginationLists = soup.findAll("ul", "pagination")
-        for paginationList in paginationLists:
-            for page in paginationList.findAll("li"):
-                # skip any page number list items that have the "disabled" class.
-                if page.has_attr("class"):
-                    if "disabled" in page['class']:
-                        continue 
-                # it's not disabled, keep on trucking.
-                if page.findAll("i", "fa-angle-double-left"):
-                    self.hasPrevPage = True
-                if page.findAll("i", "fa-angle-double-right"):
-                    self.hasNextPage = True
+        if len(self.videos) >= 10:
+            self.hasNextPage = True
         
         # for now I only know how to find the channel's ID from a video, so take the last item
         # in videos and find the channel's ID.
