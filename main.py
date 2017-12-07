@@ -259,10 +259,18 @@ def listCategories():
     Create the list of video categories in the Kodi interface.
     :return: None
     """
-    # Get video categories
-    categories = getCategories()
     # Create a list for our items.
     listing = []
+    
+    # Make the first item in our listing an entry to Subscription Activity.
+    list_item = xbmcgui.ListItem(label="Subscription Activity")
+    list_item.setInfo('video', {'title': "Subscription Activity", 'genre': "Subscription Activity"})
+    url = '{0}?action=subscriptionActivity'.format(_url)
+    listing.append((url, list_item, True))
+
+    # Get video categories
+    categories = getCategories()
+    
     # Iterate through categories
     for category in categories:
         # Create a list item with a text label and a thumbnail image.
@@ -345,6 +353,38 @@ def listVideos(categoryName, pageNumber = None):
     # Finish creating a virtual folder.
     xbmcplugin.endOfDirectory(_handle)
 
+def listSubscriptionVideos(pageNumber):
+    if pageNumber is None:
+        pageNumber = 1
+    subscriptionActivity = postLoggedIn(baseUrl + "/extend/", baseUrl,{"name": "subscribed", "offset": 40 * (pageNumber - 1)})
+    soup = BeautifulSoup(subscriptionActivity.text, 'html.parser')
+    videos = []
+    for videoContainer in soup.findAll('div', "video-card"):
+        videos.append(VideoLink.getVideoFromVideoCard(videoContainer))
+    listing = []
+    for video in videos:
+        list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
+        list_item.setProperty('fanart_image', video.thumbnail)
+        list_item.setInfo('video', {'title': video.title, 'genre': video.title})
+        list_item.setArt({'landscape': video.thumbnail})
+        list_item.setProperty('IsPlayable', 'true')
+        url = '{0}?action=play&videoId={1}&channelId=0'.format(_url, video.id)
+        is_folder = False
+        # Add our item to the listing as a 3-element tuple.
+        listing.append((url, list_item, is_folder))
+    # Add an entry to get the next page of results.
+    list_item = xbmcgui.ListItem(label="Next Page...")
+    url = '{0}?action=subscriptionActivity&page={1}'.format(_url, pageNumber + 1)
+    listing.append((url, list_item, True))
+
+    # Add our listing to Kodi.
+    # Large lists and/or slower systems benefit from adding all items at once via addDirectoryItems
+    # instead of adding one by ove via addDirectoryItem.
+    xbmcplugin.addDirectoryItems(_handle, listing, len(listing))
+    # Add a sort method for the virtual folder items (alphabetically, ignore articles)
+    xbmcplugin.addSortMethod(_handle, xbmcplugin.SORT_METHOD_UNSORTED)
+    # Finish creating a virtual folder.
+    xbmcplugin.endOfDirectory(_handle)
 
 def playVideo(channelId, videoId):
     print(videoId)
@@ -404,6 +444,9 @@ def router(paramstring):
         if params['action'] == 'listing':
             # Display the list of videos in a provided category.
             listVideos(params['category'], int(params.get('page', '1')))
+        elif params['action'] == 'subscriptionActivity':
+            # Display the list of videos from /extend subscriptions
+            listSubscriptionVideos(int(params.get('page', '1')))
         elif params['action'] == 'play':
             # Play a video from a provided URL.
             playVideo(params['channelId'], params['videoId'])
