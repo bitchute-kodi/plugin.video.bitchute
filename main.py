@@ -58,18 +58,15 @@ class VideoLink:
         self.url = self.getUrl(channelId, videoId)
 
 class Channel:
-    def __init__(self, channelName, pageNumber = None):
+    def __init__(self, channelName, pageNumber = None, thumbnail = None):
         self.channelName = channelName
         self.videos = []
-        self.thumbnail = None
+        self.thumbnail = thumbnail
         self.page = 1
         if pageNumber is not None:
             self.page = pageNumber
         self.hasPrevPage = False
         self.hasNextPage = False
-
-        self.setThumbnail()
-        self.setPage(self.page)
 	
     def setThumbnail(self):
         thumbnailReq = fetchLoggedIn(baseUrl + "/channel/" + self.channelName)
@@ -206,9 +203,15 @@ def getSubscriptions():
     req = fetchLoggedIn(baseUrl + "/subscriptions")
     soup = BeautifulSoup(req.text, 'html.parser')
     for container in soup.findAll("div", {"class":"subscription-container"}):
+        thumbnail = None
+        for thumb in container.findAll("img", {"class":"subscription-image"}):
+            if thumb.has_attr("data-src"):
+                thumbnail = baseUrl + thumb.get("data-src")
+                thumbnail = thumbnail.replace("_small.", "_large.")
+                break
         for link in container.findAll("a", {"rel":"author"}):
             name = link.get("href").split("/")[-1]
-            subscriptions.append(Channel(name))
+            subscriptions.append(Channel(name, 1, thumbnail))
     return(subscriptions)
 
 sessionCookies = getSessionCookie()
@@ -225,19 +228,6 @@ def getCategories():
     """
     categories = getSubscriptions()
     return categories
-
-
-def getVideos(categoryName):
-    """
-    Get the list of videofiles/streams.
-    Here you can insert some parsing code that retrieves
-    the list of videostreams in a given category from some site or server.
-    :param category: str
-    :return: list
-    """
-    category = Channel(categoryName)
-    return category.videos
-
 
 def listCategories():
     """
@@ -288,6 +278,7 @@ def listVideos(categoryName, pageNumber = None):
         pageNumber = 1
     # Get the list of videos in the category.
     category = Channel(categoryName, pageNumber)
+    category.setPage(pageNumber)
     videos = category.videos
     # Create a list for our items.
     listing = []
