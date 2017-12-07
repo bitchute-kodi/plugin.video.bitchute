@@ -25,23 +25,12 @@ baseUrl = "https://www.bitchute.com"
 addon = xbmcaddon.Addon()
 
 class VideoLink:
-    def __init__(self, containerSoup):
-        titleDiv = containerSoup.findAll('div', "channel-videos-title")[0]
-        linkSoup = titleDiv.findAll('a')[0]
-        
-        self.title = linkSoup.string
-        self.pageUrl = linkSoup.get("href")
-        self.id = self.pageUrl.split("/")[-1]
+    def __init__(self):
+        self.title = None
+        self.pageUrl = None
+        self.id = None
         self.thumbnail = None
         self.url = None
-        #before we can find thumnails let's strip out play button images.
-        for playButton in containerSoup.findAll('img', "play-overlay-icon"):
-            playButton.extract()
-        
-        thumbnailMatches = containerSoup.findAll('img', "img-responsive")
-        
-        if thumbnailMatches:
-            self.thumbnail = baseUrl + thumbnailMatches[0].get("data-src")
 
     @staticmethod
     def getUrl(channelId, videoId):
@@ -56,6 +45,42 @@ class VideoLink:
         return(baseUrl + "/torrent/" + channelId + "/" + videoId + ".torrent")
     def setUrl(self, channelId):
         self.url = self.getUrl(channelId, videoId)
+    @staticmethod
+    def getVideoFromChannelVideosContainer(containerSoup):
+        video = VideoLink()
+
+        #find the video title and URL
+        titleDiv = containerSoup.findAll('div', "channel-videos-title")[0]
+        linkSoup = titleDiv.findAll('a')[0]
+
+        video.title = linkSoup.string
+        video.pageUrl = linkSoup.get("href")
+        video.id = video.pageUrl.split("/")[-1]
+
+        #before we can find thumnails let's strip out play button images.
+        for playButton in containerSoup.findAll('img', "play-overlay-icon"):
+            playButton.extract()
+        
+        thumbnailMatches = containerSoup.findAll('img', "img-responsive")
+        if thumbnailMatches:
+            video.thumbnail = baseUrl + thumbnailMatches[0].get("data-src")
+        return video
+    @staticmethod
+    def getVideoFromVideoCard(videoSoup):
+        video = VideoLink()
+        linkSoup = videoSoup.findAll('a')[0]
+
+        video.pageUrl = linkSoup.get("href")
+        video.id = video.pageUrl.split("/")[-1]
+
+        titleSoup = videoSoup.findAll('div', 'video-card-text')[0].findAll('p')[0].findAll('a')[0]
+        video.title = titleSoup.text
+
+        thumbnailMatches = videoSoup.findAll('img', "img-responsive")
+        if thumbnailMatches:
+            video.thumbnail = baseUrl + thumbnailMatches[0].get("data-src")
+        
+        return video
 
 class Channel:
     def __init__(self, channelName, pageNumber = None, thumbnail = None):
@@ -67,7 +92,7 @@ class Channel:
             self.page = pageNumber
         self.hasPrevPage = False
         self.hasNextPage = False
-	
+    
     def setThumbnail(self):
         thumbnailReq = fetchLoggedIn(baseUrl + "/channel/" + self.channelName)
         thumbnailSoup = BeautifulSoup(thumbnailReq.text, 'html.parser')
@@ -85,7 +110,7 @@ class Channel:
         soup = BeautifulSoup(r.text, 'html.parser')
 
         for videoContainer in soup.findAll('div', "channel-videos-container"):
-            self.videos.append(VideoLink(videoContainer))
+            self.videos.append(VideoLink.getVideoFromChannelVideosContainer(videoContainer))
 
         if len(self.videos) >= 10:
             self.hasNextPage = True
@@ -183,20 +208,20 @@ def fetchLoggedIn(url):
     raise ValueError("Not currently logged in.")
 
 def postLoggedIn(url, referer, params):
-	#BitChute uses a token to prevent csrf attacks, get the token to make our request.
-	csrftoken = None
-	for cookie in sessionCookies:
-		if cookie.name == 'csrftoken':
-			csrftoken = cookie.value
-			break
+    #BitChute uses a token to prevent csrf attacks, get the token to make our request.
+    csrftoken = None
+    for cookie in sessionCookies:
+        if cookie.name == 'csrftoken':
+            csrftoken = cookie.value
+            break
 
-	post_data = {'csrfmiddlewaretoken': csrftoken}
-	for param in params:
-		post_data[param] = params[param]
+    post_data = {'csrfmiddlewaretoken': csrftoken}
+    for param in params:
+        post_data[param] = params[param]
 
-	headers = {'Referer': referer, 'Host': 'www.bitchute.com', 'Origin': baseUrl, 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
-	response = requests.post(url, data=post_data, headers=headers, cookies=sessionCookies)
-	return response
+    headers = {'Referer': referer, 'Host': 'www.bitchute.com', 'Origin': baseUrl, 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
+    response = requests.post(url, data=post_data, headers=headers, cookies=sessionCookies)
+    return response
 
 def getSubscriptions():
     subscriptions = []
