@@ -261,12 +261,6 @@ def listCategories():
     """
     # Create a list for our items.
     listing = []
-    
-    # Make the first item in our listing an entry to Subscription Activity.
-    list_item = xbmcgui.ListItem(label="Subscription Activity")
-    list_item.setInfo('video', {'title': "Subscription Activity", 'genre': "Subscription Activity"})
-    url = '{0}?action=subscriptionActivity'.format(_url)
-    listing.append((url, list_item, True))
 
     # Get video categories
     categories = getCategories()
@@ -291,12 +285,22 @@ def listCategories():
         is_folder = True
         # Add our item to the listing as a 3-element tuple.
         listing.append((url, list_item, is_folder))
+    
+    # Let python do the heay lifting of sorting our listing
+    listing = sorted(listing, key=lambda item: item[1].getLabel())
+
+    # Make the first item in our listing an entry to Subscription Activity.
+    list_item = xbmcgui.ListItem(label="Subscription Activity")
+    list_item.setInfo('video', {'title': "Subscription Activity", 'genre': "Subscription Activity"})
+    url = '{0}?action=subscriptionActivity'.format(_url)
+    listing.insert(0,(url, list_item, True))
+
     # Add our listing to Kodi.
     # Large lists and/or slower systems benefit from adding all items at once via addDirectoryItems
     # instead of adding one by ove via addDirectoryItem.
     xbmcplugin.addDirectoryItems(_handle, listing, len(listing))
     # Add a sort method for the virtual folder items (alphabetically, ignore articles)
-    xbmcplugin.addSortMethod(_handle, xbmcplugin.SORT_METHOD_LABEL_IGNORE_THE)
+    xbmcplugin.addSortMethod(_handle, xbmcplugin.SORT_METHOD_UNSORTED)
     # Finish creating a virtual folder.
     xbmcplugin.endOfDirectory(_handle)
 
