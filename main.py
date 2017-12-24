@@ -30,6 +30,7 @@ class VideoLink:
         self.pageUrl = None
         self.id = None
         self.thumbnail = None
+        self.channelName = None
         self.url = None
 
     @staticmethod
@@ -79,7 +80,12 @@ class VideoLink:
         thumbnailMatches = videoSoup.findAll('img', "img-responsive")
         if thumbnailMatches:
             video.thumbnail = thumbnailMatches[0].get("data-src")
-        
+        #try to find the name of the channel from video-card-text portion of the card.
+        try:
+            channelNameSoup = videoSoup.findAll('div', 'video-card-text')[0].findAll('p')[1].findAll('a')[0]
+            video.channelName = channelNameSoup.get("href").split("/")[-1]
+        except:
+            pass
         return video
 
 class Channel:
@@ -316,6 +322,7 @@ def listVideos(categoryName, pageNumber = None):
     # Get the list of videos in the category.
     category = Channel(categoryName, pageNumber)
     category.setPage(pageNumber)
+    category.setThumbnail()
     videos = category.videos
     # Create a list for our items.
     listing = []
@@ -325,7 +332,7 @@ def listVideos(categoryName, pageNumber = None):
         list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         # Set a fanart image for the list item.
         # Here we use the same image as the thumbnail for simplicity's sake.
-        list_item.setProperty('fanart_image', video.thumbnail)
+        list_item.setProperty('fanart_image', category.thumbnail)
         # Set additional info for the list item.
         list_item.setInfo('video', {'title': video.title, 'genre': video.title})
         # Set additional graphics (banner, poster, landscape etc.) for the list item.
@@ -357,18 +364,37 @@ def listVideos(categoryName, pageNumber = None):
     # Finish creating a virtual folder.
     xbmcplugin.endOfDirectory(_handle)
 
+def channelThumbnailFromChannels(name, channels):
+    for channel in channels:
+        if channel.channelName == name:
+            return channel.thumbnail
+    return ""
+
 def listSubscriptionVideos(pageNumber):
     if pageNumber is None:
         pageNumber = 1
+    # find all the channels we are subscribed to and set their thumbnails
+    channels = []
+    subs = fetchLoggedIn(baseUrl + "/subscriptions")
+    subsSoup = BeautifulSoup(subs.text, 'html.parser')
+    for sub in subsSoup.find_all('div', "subscription-container"):
+        channelName = sub.find_all('a')[0].get('href').split('/')[-1]
+        thumb = sub.find_all('img', 'subscription-image')[0].get('data-src').replace("_small.", "_large.")
+        channels.append(Channel(channelName))
+        channels[-1].thumbnail = thumb
+    
+    # fetch the actualsubscription videos
     subscriptionActivity = postLoggedIn(baseUrl + "/extend/", baseUrl,{"name": "subscribed", "offset": 40 * (pageNumber - 1)})
     soup = BeautifulSoup(subscriptionActivity.text, 'html.parser')
     videos = []
     for videoContainer in soup.findAll('div', "video-card"):
         videos.append(VideoLink.getVideoFromVideoCard(videoContainer))
+    
     listing = []
+    
     for video in videos:
         list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
-        list_item.setProperty('fanart_image', video.thumbnail)
+        list_item.setProperty('fanart_image', channelThumbnailFromChannels(video.channelName, channels))
         list_item.setInfo('video', {'title': video.title, 'genre': video.title})
         list_item.setArt({'landscape': video.thumbnail})
         list_item.setProperty('IsPlayable', 'true')
