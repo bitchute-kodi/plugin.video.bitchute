@@ -112,7 +112,7 @@ class Channel:
         self.hasPrevPage = False
         self.hasNextPage = False
         
-        r = postLoggedIn(baseUrl + "/channel/" + self.channelName + "/extend/", baseUrl + "/channel/" + self.channelName + "/",{"offset": 10 * (self.page - 1)})
+        r = postLoggedIn(baseUrl + "/channel/" + self.channelName + "/extend/", baseUrl + "/channel/" + self.channelName + "/",{"index": (self.page)})
         soup = BeautifulSoup(r.text, 'html.parser')
 
         for videoContainer in soup.findAll('div', "channel-videos-container"):
@@ -384,7 +384,7 @@ def listSubscriptionVideos(pageNumber):
         channels[-1].thumbnail = thumb
     
     # fetch the actualsubscription videos
-    subscriptionActivity = postLoggedIn(baseUrl + "/extend/", baseUrl,{"name": "subscribed", "offset": 40 * (pageNumber - 1)})
+    subscriptionActivity = postLoggedIn(baseUrl + "/extend/", baseUrl,{"name": "subscribed", "index": (pageNumber - 1)})
     soup = BeautifulSoup(subscriptionActivity.text, 'html.parser')
     videos = []
     for videoContainer in soup.findAll('div', "video-card"):
