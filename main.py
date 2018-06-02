@@ -206,7 +206,7 @@ def fetchLoggedIn(url):
     soup = BeautifulSoup(req.text, 'html.parser')
     loginUser = soup.findAll("ul", {"class":"user-menu-dropdown"})
     if loginUser:
-        profileLink = loginUser[0].findAll("a",{"class":"dropdown-item", "href":"/profile"})
+        profileLink = loginUser[0].findAll("a",{"class":"dropdown-item", "href":"/profile/"})
         if profileLink:
             return req
     #Our cookies have gone stale, clear them out.
