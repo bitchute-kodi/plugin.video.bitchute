@@ -112,7 +112,7 @@ class Channel:
         self.hasPrevPage = False
         self.hasNextPage = False
         
-        r = postLoggedIn(baseUrl + "/channel/" + self.channelName + "/extend/", baseUrl + "/channel/" + self.channelName + "/",{"index": (self.page)})
+        r = postLoggedIn(baseUrl + "/channel/" + self.channelName + "/extend/", baseUrl + "/channel/" + self.channelName + "/",{"index": (self.page - 1)})
         soup = BeautifulSoup(r.text, 'html.parser')
 
         for videoContainer in soup.findAll('div', "channel-videos-container"):
