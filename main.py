@@ -243,7 +243,8 @@ def getSubscriptions():
                 thumbnail = thumbnail.replace("_small.", "_large.")
                 break
         for link in container.findAll("a", {"rel":"author"}):
-            name = link.get("href").split("/")[-1]
+            href = link.get("href").rstrip('/')
+            name = href.split("/")[-1]
             subscriptions.append(Channel(name, 1, thumbnail))
     return(subscriptions)
 
