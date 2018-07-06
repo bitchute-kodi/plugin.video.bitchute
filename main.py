@@ -115,7 +115,7 @@ class Channel:
         
         r = postLoggedIn(baseUrl + "/channel/" + self.channelName + "/extend/", baseUrl + "/channel/" + self.channelName + "/",{"index": (self.page - 1)})
         data = json.loads(r.text)
-		soup = BeautifulSoup(data['html'], 'html.parser')
+        soup = BeautifulSoup(data['html'], 'html.parser')
 
         for videoContainer in soup.findAll('div', "channel-videos-container"):
             self.videos.append(VideoLink.getVideoFromChannelVideosContainer(videoContainer))
