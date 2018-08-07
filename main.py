@@ -34,17 +34,16 @@ class VideoLink:
         self.url = None
 
     @staticmethod
-    def getUrl(channelId, videoId):
+    def getUrl(videoId):
         req = fetchLoggedIn(baseUrl + "/video/" + videoId)
         soup = BeautifulSoup(req.text, 'html.parser')
         for link in soup.findAll("a", href=re.compile("^magnet")):
             magnetUrl = link.get("href")
             if magnetUrl.startswith("magnet:?"):
                 return magnetUrl
-        # If we couldn't find the magnet URL return the default .torrent file.
-        return(baseUrl + "/torrent/" + channelId + "/" + videoId + ".torrent")
-    def setUrl(self, channelId):
-        self.url = self.getUrl(channelId, videoId)
+        raise ValueError("Could not find the magnet link for this video.")
+    def setUrl(self):
+        self.url = self.getUrl(videoId)
     @staticmethod
     def getVideoFromChannelVideosContainer(containerSoup):
         video = VideoLink()
@@ -122,15 +121,6 @@ class Channel:
 
         if len(self.videos) >= 10:
             self.hasNextPage = True
-        
-        # for now I only know how to find the channel's ID from a video, so take the last item
-        # in videos and find the channel's ID.
-        videoRequest = requests.get(baseUrl + self.videos[-1].pageUrl)
-        channelIdMatches = re.search('/torrent/\d+', videoRequest.text)
-        if channelIdMatches:
-            self.id = channelIdMatches.group().split("/")[-1]
-        else:
-            raise ValueError("channel Id not found for " + self.channelName + ".")
 
 class MyPlayer(xbmc.Player):
     def __init__(self):
@@ -346,7 +336,7 @@ def listVideos(categoryName, pageNumber = None):
         list_item.setProperty('IsPlayable', 'true')
         # Create a URL for the plugin recursive callback.
         # Example: plugin://plugin.video.example/?action=play&video=http://www.vidsplay.com/vids/crab.mp4
-        url = '{0}?action=play&videoId={1}&channelId={2}'.format(_url, video.id, category.id)
+        url = '{0}?action=play&videoId={1}'.format(_url, video.id)
         # Add the list item to a virtual Kodi folder.
         # is_folder = False means that this item won't open any sub-list.
         is_folder = False
@@ -402,7 +392,7 @@ def listSubscriptionVideos(pageNumber):
         list_item.setInfo('video', {'title': video.title, 'genre': video.title})
         list_item.setArt({'landscape': video.thumbnail})
         list_item.setProperty('IsPlayable', 'true')
-        url = '{0}?action=play&videoId={1}&channelId=0'.format(_url, video.id)
+        url = '{0}?action=play&videoId={1}'.format(_url, video.id)
         is_folder = False
         # Add our item to the listing as a 3-element tuple.
         listing.append((url, list_item, is_folder))
@@ -420,9 +410,9 @@ def listSubscriptionVideos(pageNumber):
     # Finish creating a virtual folder.
     xbmcplugin.endOfDirectory(_handle)
 
-def playVideo(channelId, videoId):
+def playVideo(videoId):
     print(videoId)
-    videoUrl = VideoLink.getUrl(channelId, videoId)
+    videoUrl = VideoLink.getUrl(videoId)
     playing = 0
     # start webtorrent fetching path
     output = ""
@@ -483,7 +473,7 @@ def router(paramstring):
             listSubscriptionVideos(int(params.get('page', '1')))
         elif params['action'] == 'play':
             # Play a video from a provided URL.
-            playVideo(params['channelId'], params['videoId'])
+            playVideo(params['videoId'])
     else:
         # If the plugin is called from Kodi UI without any parameters,
         # display the list of video categories
