@@ -22,6 +22,7 @@ _url = sys.argv[0]
 # Get the plugin handle as an integer number.
 _handle = int(sys.argv[1])
 baseUrl = "https://www.bitchute.com"
+playlistPageLength = 25
 addon = xbmcaddon.Addon()
 
 class VideoLink:
@@ -87,6 +88,33 @@ class VideoLink:
         except:
             pass
         return video
+    @staticmethod
+    def getVideoFromPlaylist(container):
+        video = VideoLink()
+        titleSoup = container.findAll('div', 'text-container')[0].findAll('div', 'title')[0].findAll('a')[0]
+        video.title = titleSoup.text
+        video.pageUrl = titleSoup.get("href").rstrip('/')
+        video.id = video.pageUrl.split("/")[-1]
+        try:
+            channelNameSoup = container.findAll('div', 'text-container')[0].findAll('div', 'channel')[0].findAll('a')[0]
+            video.channelName = channelNameSoup.get("href").rstrip('/').split("/")[-1]
+        except:
+            pass
+
+        for thumb in container.findAll("img", {"class": "img-responsive"}):
+            if(thumb.has_attr("data-src")):
+                video.thumbnail = thumb.get("data-src")
+            break
+        return video
+    @staticmethod
+    def getVideosByPlaylist(playlistId, offset = 0):
+        videos = []
+        req = postLoggedIn(baseUrl + "/playlist/" + playlistId + "/extend/", baseUrl + "/playlist/" + playlistId, {"offset": offset})
+        data = json.loads(req.text)
+        soup = BeautifulSoup(data["html"], 'html.parser')
+        for container in soup.findAll("div", {"class": "playlist-video"}):
+            videos.append(VideoLink.getVideoFromPlaylist(container))
+        return videos
 
 class Channel:
     def __init__(self, channelName, pageNumber = None, thumbnail = None):
@@ -121,6 +149,27 @@ class Channel:
 
         if len(self.videos) >= 10:
             self.hasNextPage = True
+
+class Playlist:
+    def __init__(self):
+        self.name = None
+        self.id = None
+        self.thumbnail = None
+    @staticmethod
+    def getPlaylists():
+        playlists = []
+        req = fetchLoggedIn(baseUrl + "/playlists/")
+        soup = BeautifulSoup(req.text, 'html.parser')
+        for container in soup.findAll("div", {"class": "playlist-card"}):
+            playlist = Playlist()
+            linkSoup = container.findAll('a')[0]
+            nameSoup = linkSoup.findAll('span', 'title')[0]
+            thumbnailSoup = linkSoup.findAll('img', "img-responsive")[0]
+            playlist.name = nameSoup.text
+            playlist.id = linkSoup.get("href").rstrip('/').split("/")[-1]
+            playlist.thumbnail = thumbnailSoup.get("data-src")
+            playlists.append(playlist)
+        return playlists
 
 class MyPlayer(xbmc.Player):
     def __init__(self):
@@ -242,6 +291,48 @@ sessionCookies = getSessionCookie()
 
 
 
+def defaultMenu():
+    listing = []
+    subsActivity = xbmcgui.ListItem(label="Subscription Activity")
+    subsActivity.setInfo('video', {'title': "Subscription Activity", 'genre': "Subscription Activity"})
+    subsActivityUrl = '{0}?action=subscriptionActivity'.format(_url)
+    listing.append((subsActivityUrl, subsActivity, True))
+
+    watchLater = xbmcgui.ListItem(label="Watch Later")
+    watchLater.setInfo('video', {'title': "Watch Later", 'genre': "Watch Later"})
+    watchLaterUrl = '{0}?action=playlist&playlistId=watch-later'.format(_url)
+    listing.append((watchLaterUrl, watchLater, True))
+
+    playlists = xbmcgui.ListItem(label="Playlists")
+    playlists.setInfo('video', {'title': "Playlists", 'genre': "Playlists"})
+    playlistsUrl = '{0}?action=playlists'.format(_url)
+    listing.append((playlistsUrl, playlists, True))
+
+    subscriptions = xbmcgui.ListItem(label="Subscriptions")
+    subscriptions.setInfo('video', {'title': "Subscriptions", 'genre': "Subscriptions"})
+    subscriptionsUrl = '{0}?action=subscriptions'.format(_url)
+    listing.append((subscriptionsUrl, subscriptions, True))
+    
+    #add our listing to kodi
+    xbmcplugin.addDirectoryItems(_handle, listing, len(listing))
+    xbmcplugin.addSortMethod(_handle, xbmcplugin.SORT_METHOD_UNSORTED)
+    xbmcplugin.endOfDirectory(_handle)
+
+def listPlaylists():
+    listing = []
+    playlists = Playlist.getPlaylists()
+
+    for playlist in playlists:
+        list_item = xbmcgui.ListItem(label=playlist.name, thumbnailImage=playlist.thumbnail)
+        list_item.setProperty('fanart_image', playlist.thumbnail)
+        list_item.setInfo('video', {'title': playlist.name, 'genre': playlist.name})
+        url = '{0}?action=playlist&playlistId={1}'.format(_url, playlist.id)
+        listing.append((url, list_item, True))
+    #add our listing to kodi
+    xbmcplugin.addDirectoryItems(_handle, listing, len(listing))
+    xbmcplugin.addSortMethod(_handle, xbmcplugin.SORT_METHOD_UNSORTED)
+    xbmcplugin.endOfDirectory(_handle)
+
 def getCategories():
     """
     Get the list of video categories.
@@ -288,12 +379,6 @@ def listCategories():
     # Let python do the heay lifting of sorting our listing
     listing = sorted(listing, key=lambda item: item[1].getLabel())
 
-    # Make the first item in our listing an entry to Subscription Activity.
-    list_item = xbmcgui.ListItem(label="Subscription Activity")
-    list_item.setInfo('video', {'title': "Subscription Activity", 'genre': "Subscription Activity"})
-    url = '{0}?action=subscriptionActivity'.format(_url)
-    listing.insert(0,(url, list_item, True))
-
     # Add our listing to Kodi.
     # Large lists and/or slower systems benefit from adding all items at once via addDirectoryItems
     # instead of adding one by ove via addDirectoryItem.
@@ -303,6 +388,32 @@ def listCategories():
     # Finish creating a virtual folder.
     xbmcplugin.endOfDirectory(_handle)
 
+def listVideosPlaylist(playlistId, pageNumber = None):
+    if pageNumber is None:
+        pageNumber = 1
+
+    listing = []
+    videos = VideoLink.getVideosByPlaylist(playlistId, pageNumber-1)
+    for video in videos:
+        list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
+        # Set a fanart image for the list item.
+        # Here we use the same image as the thumbnail for simplicity's sake.
+        list_item.setProperty('fanart_image', video.thumbnail)
+        # Set additional info for the list item.
+        list_item.setInfo('video', {'title': video.title, 'genre': video.title})
+        list_item.setArt({'landscape': video.thumbnail})
+        list_item.setProperty('IsPlayable', 'true')
+        url = '{0}?action=play&videoId={1}'.format(_url, video.id)
+        listing.append((url, list_item, False))
+    # If the category has a next page add it to our listing.
+    if len(videos) >= playlistPageLength:
+        list_item = xbmcgui.ListItem(label="Next Page...")
+        url = '{0}?action=playlist&playlistId={1}&page={2}'.format(_url, playlistId, pageNumber * playlistPageLength)
+        listing.append((url, list_item, True))
+    # Add our listing to Kodi.
+    xbmcplugin.addDirectoryItems(_handle, listing, len(listing))
+    xbmcplugin.addSortMethod(_handle, xbmcplugin.SORT_METHOD_UNSORTED)
+    xbmcplugin.endOfDirectory(_handle)
 
 def listVideos(categoryName, pageNumber = None):
     """
@@ -474,10 +585,17 @@ def router(paramstring):
         elif params['action'] == 'play':
             # Play a video from a provided URL.
             playVideo(params['videoId'])
+        elif params['action'] == 'playlists':
+            listPlaylists()
+        elif params['action'] == 'playlist':
+            listVideosPlaylist(params['playlistId'], int(params.get('page', '1')))
+        elif params['action'] == 'subscriptions':
+            listCategories()
     else:
         # If the plugin is called from Kodi UI without any parameters,
         # display the list of video categories
-        listCategories()
+        #listCategories()
+        defaultMenu()
 
 
 if __name__ == '__main__':
