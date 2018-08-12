@@ -27,3 +27,11 @@ msgstr ""
 msgctxt "#32012"
 msgid "Password"
 msgstr ""
+
+msgctxt "#32015"
+msgid "Save path ( leave empty to not save videos )"
+msgstr ""
+
+msgctxt "#32016"
+msgid "Seed with webtorrent-dekstop after playing ( save path needs to be the same as above )"
+msgstr ""

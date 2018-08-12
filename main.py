@@ -17,6 +17,8 @@ import time
 from bs4 import BeautifulSoup
 import subprocess
 
+import xbmc
+
 # Get the plugin url in plugin:// notation.
 _url = sys.argv[0]
 # Get the plugin handle as an integer number.
@@ -529,7 +531,17 @@ def playVideo(videoId):
     output = ""
     cnt = 0
     dlnaUrl = None
-    webTorrentClient = subprocess.Popen('webtorrent-hybrid "' +  videoUrl + '" --dlna', shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    save_path=""
+    try:
+        save_path = xbmcplugin.getSetting(_handle, 'save_path')
+        if len(save_path)>0:
+            xbmc.log("saving to: "+save_path,xbmc.LOGERROR)
+            save_path= " -o "+save_path
+        else:
+            xbmc.log("not saving ",xbmc.LOGERROR)
+    except:
+        pass
+    webTorrentClient = subprocess.Popen('webtorrent-hybrid "' +  videoUrl + '" --dlna'+save_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     print("running with PID " + str(webTorrentClient.pid))
     for stdout_line in webTorrentClient.stdout:
         output += stdout_line.decode()
@@ -545,13 +557,15 @@ def playVideo(videoId):
         raise ValueError("could not determine the dlna URL.")
 
     print("Streaming at: " + dlnaUrl)
+    seed_after=xbmcplugin.getSetting(_handle, 'seed_after') == "true" # for some reason we can't get settings in playWithCustomPlayer()
+    xbmc.log("seed_after="+xbmcplugin.getSetting(_handle, 'seed_after'), xbmc.LOGERROR)
 
     while webTorrentClient.poll() == None:
         if playing == 0:
             playing = 1
-            playWithCustomPlayer(dlnaUrl, webTorrentClient)
+            playWithCustomPlayer(dlnaUrl, webTorrentClient,videoUrl,seed_after)
 
-def playWithCustomPlayer(url, webTorrentClient):
+def playWithCustomPlayer(url, webTorrentClient,videoUrl="",seed_after=False):
     play_item = xbmcgui.ListItem(path=url)
     # Get an instance of xbmc.Player to work with.
     player = MyPlayer()
@@ -562,7 +576,12 @@ def playWithCustomPlayer(url, webTorrentClient):
         player.sleep(100)
 
     webTorrentClient.terminate()
-    
+    if seed_after :
+        s=subprocess.Popen('webtorrent-desktop "' +  videoUrl +'" ', shell=True)
+    else:
+        xbmc.log("not seeding",xbmc.LOGERROR)
+
+
 
 def router(paramstring):
     """
