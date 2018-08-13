@@ -396,26 +396,7 @@ def listVideosPlaylist(playlistId, pageNumber = None):
 
     listing = []
     videos = VideoLink.getVideosByPlaylist(playlistId, pageNumber-1)
-    for video in videos:
-        list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
-        # Set a fanart image for the list item.
-        # Here we use the same image as the thumbnail for simplicity's sake.
-        list_item.setProperty('fanart_image', video.thumbnail)
-        # Set additional info for the list item.
-        list_item.setInfo('video', {'title': video.title, 'genre': video.title})
-        list_item.setArt({'landscape': video.thumbnail})
-        list_item.setProperty('IsPlayable', 'true')
-        url = '{0}?action=play&videoId={1}'.format(_url, video.id)
-        listing.append((url, list_item, False))
-    # If the category has a next page add it to our listing.
-    if len(videos) >= playlistPageLength:
-        list_item = xbmcgui.ListItem(label="Next Page...")
-        url = '{0}?action=playlist&playlistId={1}&page={2}'.format(_url, playlistId, pageNumber * playlistPageLength)
-        listing.append((url, list_item, True))
-    # Add our listing to Kodi.
-    xbmcplugin.addDirectoryItems(_handle, listing, len(listing))
-    xbmcplugin.addSortMethod(_handle, xbmcplugin.SORT_METHOD_UNSORTED)
-    xbmcplugin.endOfDirectory(_handle)
+    drawVideosListing(videos, [], pageNumber, playlistPageLength)
 
 def listVideos(categoryName, pageNumber = None):
     """
@@ -431,44 +412,7 @@ def listVideos(categoryName, pageNumber = None):
     category.setThumbnail()
     videos = category.videos
     # Create a list for our items.
-    listing = []
-    # Iterate through videos.
-    for video in videos:
-        # Create a list item with a text label and a thumbnail image.
-        list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
-        # Set a fanart image for the list item.
-        # Here we use the same image as the thumbnail for simplicity's sake.
-        list_item.setProperty('fanart_image', category.thumbnail)
-        # Set additional info for the list item.
-        list_item.setInfo('video', {'title': video.title, 'genre': video.title})
-        # Set additional graphics (banner, poster, landscape etc.) for the list item.
-        # Again, here we use the same image as the thumbnail for simplicity's sake.
-        list_item.setArt({'landscape': video.thumbnail})
-        # Set 'IsPlayable' property to 'true'.
-        # This is mandatory for playable items!
-        list_item.setProperty('IsPlayable', 'true')
-        # Create a URL for the plugin recursive callback.
-        # Example: plugin://plugin.video.example/?action=play&video=http://www.vidsplay.com/vids/crab.mp4
-        url = '{0}?action=play&videoId={1}'.format(_url, video.id)
-        # Add the list item to a virtual Kodi folder.
-        # is_folder = False means that this item won't open any sub-list.
-        is_folder = False
-        # Add our item to the listing as a 3-element tuple.
-        listing.append((url, list_item, is_folder))
-    # If the category has a next page add it to our listing.
-    if category.hasNextPage:
-        list_item = xbmcgui.ListItem(label="Next Page...")
-        url = '{0}?action=listing&category={1}&page={2}'.format(_url, category.channelName, category.page + 1)
-        listing.append((url, list_item, True))
-
-    # Add our listing to Kodi.
-    # Large lists and/or slower systems benefit from adding all items at once via addDirectoryItems
-    # instead of adding one by ove via addDirectoryItem.
-    xbmcplugin.addDirectoryItems(_handle, listing, len(listing))
-    # Add a sort method for the virtual folder items (alphabetically, ignore articles)
-    xbmcplugin.addSortMethod(_handle, xbmcplugin.SORT_METHOD_UNSORTED)
-    # Finish creating a virtual folder.
-    xbmcplugin.endOfDirectory(_handle)
+    drawVideosListing(videos, [category], pageNumber, 10)
 
 def channelThumbnailFromChannels(name, channels):
     for channel in channels:
