@@ -497,8 +497,10 @@ def listSubscriptionVideos(pageNumber):
     for videoContainer in soup.findAll('div', "video-card"):
         videos.append(VideoLink.getVideoFromVideoCard(videoContainer))
     
+    drawVideosListing(videos, channels, pageNumber, playlistPageLength)
+
+def drawVideosListing(videos, channels = [], pageNumber = 1, itemsPerPage = 10):
     listing = []
-    
     for video in videos:
         list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         list_item.setProperty('fanart_image', channelThumbnailFromChannels(video.channelName, channels))
@@ -506,13 +508,17 @@ def listSubscriptionVideos(pageNumber):
         list_item.setArt({'landscape': video.thumbnail})
         list_item.setProperty('IsPlayable', 'true')
         url = '{0}?action=play&videoId={1}'.format(_url, video.id)
+        if hasSavePath():
+            contextOptions = [("Save and Watch Video","xbmc.PlayMedia("+url+"&save=1)"),("Seed After Watching","PlayMedia("+url+"&seed=1)")]
+            list_item.addContextMenuItems(contextOptions)
         is_folder = False
         # Add our item to the listing as a 3-element tuple.
         listing.append((url, list_item, is_folder))
     # Add an entry to get the next page of results.
-    list_item = xbmcgui.ListItem(label="Next Page...")
-    url = '{0}?action=subscriptionActivity&page={1}'.format(_url, pageNumber + 1)
-    listing.append((url, list_item, True))
+    if len(videos) >= itemsPerPage:
+        list_item = xbmcgui.ListItem(label="Next Page...")
+        url = '{0}?action=subscriptionActivity&page={1}'.format(_url, pageNumber + 1)
+        listing.append((url, list_item, True))
 
     # Add our listing to Kodi.
     # Large lists and/or slower systems benefit from adding all items at once via addDirectoryItems
@@ -523,7 +529,13 @@ def listSubscriptionVideos(pageNumber):
     # Finish creating a virtual folder.
     xbmcplugin.endOfDirectory(_handle)
 
-def playVideo(videoId):
+def hasSavePath():
+    save_path = xbmcplugin.getSetting(_handle, 'save_path')
+    if len(save_path) > 0:
+        return True
+    return False
+
+def playVideo(videoId, save = False, seed = False):
     print(videoId)
     videoUrl = VideoLink.getUrl(videoId)
     playing = 0
@@ -532,15 +544,16 @@ def playVideo(videoId):
     cnt = 0
     dlnaUrl = None
     save_path=""
-    try:
-        save_path = xbmcplugin.getSetting(_handle, 'save_path')
-        if len(save_path)>0:
-            xbmc.log("saving to: "+save_path,xbmc.LOGERROR)
-            save_path= " -o "+save_path
-        else:
-            xbmc.log("not saving ",xbmc.LOGERROR)
-    except:
-        pass
+    if save:
+        try:
+            save_path = xbmcplugin.getSetting(_handle, 'save_path')
+            if len(save_path)>0:
+                xbmc.log("saving to: "+save_path,xbmc.LOGERROR)
+                save_path= " -o "+save_path
+            else:
+                xbmc.log("not saving ",xbmc.LOGERROR)
+        except:
+            pass
     webTorrentClient = subprocess.Popen('webtorrent-hybrid "' +  videoUrl + '" --dlna'+save_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     print("running with PID " + str(webTorrentClient.pid))
     for stdout_line in webTorrentClient.stdout:
@@ -557,13 +570,12 @@ def playVideo(videoId):
         raise ValueError("could not determine the dlna URL.")
 
     print("Streaming at: " + dlnaUrl)
-    seed_after=xbmcplugin.getSetting(_handle, 'seed_after') == "true" # for some reason we can't get settings in playWithCustomPlayer()
-    xbmc.log("seed_after="+xbmcplugin.getSetting(_handle, 'seed_after'), xbmc.LOGERROR)
+    xbmc.log("seed_after="+seed, xbmc.LOGERROR)
 
     while webTorrentClient.poll() == None:
         if playing == 0:
             playing = 1
-            playWithCustomPlayer(dlnaUrl, webTorrentClient,videoUrl,seed_after)
+            playWithCustomPlayer(dlnaUrl, webTorrentClient,videoUrl,seed)
 
 def playWithCustomPlayer(url, webTorrentClient,videoUrl="",seed_after=False):
     play_item = xbmcgui.ListItem(path=url)
@@ -575,11 +587,11 @@ def playWithCustomPlayer(url, webTorrentClient,videoUrl="",seed_after=False):
     while player.is_active:
         player.sleep(100)
 
-    webTorrentClient.terminate()
-    if seed_after :
-        s=subprocess.Popen('webtorrent-desktop "' +  videoUrl +'" ', shell=True)
+    if seed_after == False:
+	    webTorrentClient.terminate()
+        xbmc.log("no longer seeding",xbmc.LOGERROR)
     else:
-        xbmc.log("not seeding",xbmc.LOGERROR)
+        xbmc.log("Continuing to seed after playback.",xbmc.LOGERROR)
 
 
 
@@ -603,7 +615,7 @@ def router(paramstring):
             listSubscriptionVideos(int(params.get('page', '1')))
         elif params['action'] == 'play':
             # Play a video from a provided URL.
-            playVideo(params['videoId'])
+            playVideo(params['videoId'], bool(params.get('save', False)), False)
         elif params['action'] == 'playlists':
             listPlaylists()
         elif params['action'] == 'playlist':
