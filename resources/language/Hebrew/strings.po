@@ -27,3 +27,7 @@ msgstr "שם משתמש"
 msgctxt "#32012"
 msgid "Password"
 msgstr "סיסמה"
+
+msgctxt "#32015"
+msgid "Save Path"
+msgstr "שמור נתיב"

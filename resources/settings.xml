@@ -5,6 +5,5 @@
         <setting label="32012" type="text"   id="password" option="hidden"  enable="!eq(-1,)" default=""/>
         <setting label="32014" type="text"   id="cookies" visible="false" default=""/>
         <setting label="32015" type="folder"   id="save_path"  default=""/>
-        <setting label="32016" type="bool"   id="seed_after"  default="false"/>
     </category>
 </settings>

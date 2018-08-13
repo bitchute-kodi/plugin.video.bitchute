@@ -588,8 +588,8 @@ def playWithCustomPlayer(url, webTorrentClient,videoUrl="",seed_after=False):
         player.sleep(100)
 
     if seed_after == False:
-	    webTorrentClient.terminate()
-        xbmc.log("no longer seeding",xbmc.LOGERROR)
+        webTorrentClient.terminate()
+        xbmc.log("No longer seeding",xbmc.LOGERROR)
     else:
         xbmc.log("Continuing to seed after playback.",xbmc.LOGERROR)
 
