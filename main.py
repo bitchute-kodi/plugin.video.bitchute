@@ -508,9 +508,11 @@ def drawVideosListing(videos, channels = [], pageNumber = 1, itemsPerPage = 10):
         list_item.setArt({'landscape': video.thumbnail})
         list_item.setProperty('IsPlayable', 'true')
         url = '{0}?action=play&videoId={1}'.format(_url, video.id)
+        contextOptions = [("Seed After Watching","PlayMedia("+url+"&seed=1)")]
         if hasSavePath():
-            contextOptions = [("Save and Watch Video","xbmc.PlayMedia("+url+"&save=1)"),("Seed After Watching","PlayMedia("+url+"&seed=1)")]
-            list_item.addContextMenuItems(contextOptions)
+            contextOptions.append(("Save and Watch Video","xbmc.PlayMedia("+url+"&save=1)"))
+            contextOptions.reverse()
+        list_item.addContextMenuItems(contextOptions)
         is_folder = False
         # Add our item to the listing as a 3-element tuple.
         listing.append((url, list_item, is_folder))
@@ -570,7 +572,7 @@ def playVideo(videoId, save = False, seed = False):
         raise ValueError("could not determine the dlna URL.")
 
     print("Streaming at: " + dlnaUrl)
-    xbmc.log("seed_after="+seed, xbmc.LOGERROR)
+    xbmc.log("seed_after="+str(seed), xbmc.LOGERROR)
 
     while webTorrentClient.poll() == None:
         if playing == 0:
