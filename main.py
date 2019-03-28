@@ -499,7 +499,7 @@ def playVideo(videoId, save = False, seed = False):
             xbmc.log("saving to: "+save_path,xbmc.LOGERROR)
             # it's a bit of hack but setting a unique-ish filename prevents stalling when trying to verify previously fetched data.
             ts = time.time()
-            save_path= " --out \"" + save_path + str(int(ts)) + ".mp4\""
+            save_path= " --out \"" + save_path + str(int(ts))
         else:
             xbmc.log("not saving ",xbmc.LOGERROR)
 
