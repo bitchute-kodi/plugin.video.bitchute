@@ -493,26 +493,33 @@ def playVideo(videoId, save = False, seed = False):
     if save:
         try:
             save_path = xbmcplugin.getSetting(_handle, 'save_path')
-            if len(save_path)>0:
-                xbmc.log("saving to: "+save_path,xbmc.LOGERROR)
-                save_path= " -o "+save_path
-            else:
-                xbmc.log("not saving ",xbmc.LOGERROR)
         except:
             pass
-    webTorrentClient = subprocess.Popen('webtorrent-hybrid "' +  videoUrl + '" --dlna'+save_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    print("running with PID " + str(webTorrentClient.pid))
+        if len(save_path)>0:
+            xbmc.log("saving to: "+save_path,xbmc.LOGERROR)
+            # it's a bit of hack but setting a unique-ish filename prevents stalling when trying to verify previously fetched data.
+            ts = time.time()
+            save_path= " --out \"" + save_path + str(int(ts)) + ".mp4\""
+        else:
+            xbmc.log("not saving ",xbmc.LOGERROR)
+
+    command = 'webtorrent-hybrid download "' +  videoUrl + '" --dlna'+save_path
+    xbmc.log("Executing: " + command ,xbmc.LOGERROR)
+
+    webTorrentClient = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    xbmc.log("webtorrent-hybrid running with PID " + str(webTorrentClient.pid), xbmc.LOGNOTICE)
     for stdout_line in webTorrentClient.stdout:
         output += stdout_line.decode()
         cnt += 1
         if cnt > 10:
             break
-
+    
     dlnaMatches = re.search('http:\/\/((\w|\d)+(\.)*)+:\d+\/\d+', output)
     if dlnaMatches:
         dlnaUrl = dlnaMatches.group()
     else:
         webTorrentClient.terminate()
+        xbmc.log("could not determine the dlna URL.", xbmc.LOGERROR)
         raise ValueError("could not determine the dlna URL.")
 
     print("Streaming at: " + dlnaUrl)
@@ -527,8 +534,20 @@ def playWithCustomPlayer(url, webTorrentClient,videoUrl="",seed_after=False):
     play_item = xbmcgui.ListItem(path=url)
     # Get an instance of xbmc.Player to work with.
     player = MyPlayer()
-    player.play( url, play_item )
-    xbmcplugin.setResolvedUrl(_handle, True, listitem=play_item)
+
+    # Allow retries if we haven't buffered enough video, yet.
+    retries = 5
+    attemptCount = 0
+
+    while attemptCount < retries:
+        attemptCount + 1
+        try:
+            player.play( url, play_item )
+            xbmcplugin.setResolvedUrl(_handle, True, listitem=play_item)
+            attemptCount = retries
+        except:
+            xbmc.log("Need to retry",xbmc.LOGERROR)
+            time.sleep(10)
     
     while player.is_active:
         player.sleep(100)
