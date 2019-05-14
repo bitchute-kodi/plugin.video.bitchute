@@ -45,6 +45,26 @@ class VideoLink:
             if magnetUrl.startswith("magnet:?"):
                 return magnetUrl
         raise ValueError("Could not find the magnet link for this video.")
+    @staticmethod
+    def getInfo(videoId):
+        req = fetchLoggedIn(baseUrl + "/video/" + videoId)
+        soup = BeautifulSoup(req.text, 'html.parser')
+        title=soup.title.string
+        try:
+            poster=soup.find("meta",attrs={'name':"twitter:image:src"})['content']
+        except:
+            poster=""
+        try:
+            artist=soup.find("meta",attrs={'name':"twitter:title"})['content']
+        except:
+            artist=""
+        for link in soup.findAll("a", href=re.compile("^magnet")):
+            magnetUrl = link.get("href")
+            if magnetUrl.startswith("magnet:?"):
+                xbmc.log(title,xbmc.LOGERROR)
+                return {'magnetUrl':magnetUrl,'title':title , 'poster':poster , 'artist':artist}
+        raise ValueError("Could not find the magnet link for this video.")
+
     def setUrl(self):
         self.url = self.getUrl(videoId)
     @staticmethod
@@ -525,7 +545,7 @@ def listSubscriptionVideos(pageNumber):
 
 def playVideo(videoId):
     print(videoId)
-    videoUrl = VideoLink.getUrl(videoId)
+    videoInfo = VideoLink.getInfo(videoId)
     playing = 0
     # start webtorrent fetching path
     output = ""
@@ -541,7 +561,7 @@ def playVideo(videoId):
             xbmc.log("not saving ",xbmc.LOGERROR)
     except:
         pass
-    webTorrentClient = subprocess.Popen('webtorrent-hybrid "' +  videoUrl + '" --dlna'+save_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    webTorrentClient = subprocess.Popen('webtorrent-hybrid "' +  videoInfo['magnetUrl'] + '" --dlna'+save_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     print("running with PID " + str(webTorrentClient.pid))
     for stdout_line in webTorrentClient.stdout:
         output += stdout_line.decode()
@@ -563,10 +583,16 @@ def playVideo(videoId):
     while webTorrentClient.poll() == None:
         if playing == 0:
             playing = 1
-            playWithCustomPlayer(dlnaUrl, webTorrentClient,videoUrl,seed_after)
+            playWithCustomPlayer(dlnaUrl, webTorrentClient,videoInfo, seed_after)
 
-def playWithCustomPlayer(url, webTorrentClient,videoUrl="",seed_after=False):
+def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_after=False):
     play_item = xbmcgui.ListItem(path=url)
+    xbmc.log(videoInfo['title'],xbmc.LOGERROR)
+    try:
+        play_item.setInfo("video",{'title':videoInfo['title'] , 'artist':[videoInfo['artist']]})
+        play_item.setArt({'poster':videoInfo['poster']})
+    except:
+        pass
     # Get an instance of xbmc.Player to work with.
     player = MyPlayer()
     player.play( url, play_item )
@@ -586,7 +612,7 @@ def playWithCustomPlayer(url, webTorrentClient,videoUrl="",seed_after=False):
 
     webTorrentClient.terminate()
     if seed_after :
-        s=subprocess.Popen('webtorrent-desktop "' +  videoUrl +'" ', shell=True)
+        s=subprocess.Popen('webtorrent-desktop "' +  videoInfo['magnetUrl'] +'" ', shell=True)
     else:
         xbmc.log("not seeding",xbmc.LOGERROR)
 
