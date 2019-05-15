@@ -561,6 +561,7 @@ def playVideo(videoId):
             xbmc.log("not saving ",xbmc.LOGERROR)
     except:
         pass
+    seed_after=xbmcplugin.getSetting(_handle, 'seed_after') == "true" # for some reason we can't get settings in playWithCustomPlayer()
     webTorrentClient = subprocess.Popen('webtorrent-hybrid "' +  videoInfo['magnetUrl'] + '" --dlna'+save_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     print("running with PID " + str(webTorrentClient.pid))
     for stdout_line in webTorrentClient.stdout:
@@ -573,12 +574,20 @@ def playVideo(videoId):
     if dlnaMatches:
         dlnaUrl = dlnaMatches.group()
     else:
+        xbmc.log("could not determine the dlna URL.",xbmc.LOGERROR) 
+        import random
+        webseeds=[]
+        for url_el in videoInfo['magnetUrl'].split("&"):
+            if url_el[0:3]=="as=":
+                webseeds.append(url_el[3:])
+        import random
+        dlnaUrl=random.choice(webseeds)
+        xbmc.log("playing from webseed: "+dlnaUrl,xbmc.LOGERROR)
+        seed_after=False
         webTorrentClient.terminate()
-        raise ValueError("could not determine the dlna URL.")
 
-    print("Streaming at: " + dlnaUrl)
-    seed_after=xbmcplugin.getSetting(_handle, 'seed_after') == "true" # for some reason we can't get settings in playWithCustomPlayer()
-    xbmc.log("seed_after="+xbmcplugin.getSetting(_handle, 'seed_after'), xbmc.LOGERROR)
+    xbmc.log("Streaming at: " + dlnaUrl, xbmc.LOGERROR)
+    xbmc.log("seed_after="+str(seed_after), xbmc.LOGERROR)
 
     while webTorrentClient.poll() == None:
         if playing == 0:
