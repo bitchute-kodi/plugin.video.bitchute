@@ -543,6 +543,21 @@ def listSubscriptionVideos(pageNumber):
     # Finish creating a virtual folder.
     xbmcplugin.endOfDirectory(_handle)
 
+def playWebseed(videoInfo):
+        import random
+        webseeds=[]
+        for url_el in videoInfo['magnetUrl'].split("&"):
+            if url_el[0:3]=="as=":
+                webseeds.append(url_el[3:])
+        import random
+        dlnaUrl=random.choice(webseeds)
+        xbmc.log("playing from webseed: "+dlnaUrl,xbmc.LOGERROR)
+        seed_after=False
+        dialog = xbmcgui.Dialog()
+        dialog.notification('Playing from webseed','Make sure that webtorrent-hybrid is installed and working for best results.',xbmcgui.NOTIFICATION_INFO, 30000)
+        playWithCustomPlayer(dlnaUrl, None,videoInfo, seed_after)
+        return True
+ 
 def playVideo(videoId):
     print(videoId)
     videoInfo = VideoLink.getInfo(videoId)
@@ -575,16 +590,8 @@ def playVideo(videoId):
         dlnaUrl = dlnaMatches.group()
     else:
         xbmc.log("could not determine the dlna URL.",xbmc.LOGERROR) 
-        import random
-        webseeds=[]
-        for url_el in videoInfo['magnetUrl'].split("&"):
-            if url_el[0:3]=="as=":
-                webseeds.append(url_el[3:])
-        import random
-        dlnaUrl=random.choice(webseeds)
-        xbmc.log("playing from webseed: "+dlnaUrl,xbmc.LOGERROR)
-        seed_after=False
         webTorrentClient.terminate()
+        return playWebseed(videoInfo)
 
     xbmc.log("Streaming at: " + dlnaUrl, xbmc.LOGERROR)
     xbmc.log("seed_after="+str(seed_after), xbmc.LOGERROR)
@@ -619,7 +626,10 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
     while player.is_active:
         player.sleep(100)
 
-    webTorrentClient.terminate()
+    try:
+        webTorrentClient.terminate()
+    except:
+        pass
     if seed_after :
         s=subprocess.Popen('webtorrent-desktop "' +  videoInfo['magnetUrl'] +'" ', shell=True)
     else:
