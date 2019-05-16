@@ -16,6 +16,7 @@ import json
 import time
 from bs4 import BeautifulSoup
 import subprocess
+import shlex
 
 import xbmc
 
@@ -577,7 +578,10 @@ def playVideo(videoId):
     except:
         pass
     seed_after=xbmcplugin.getSetting(_handle, 'seed_after') == "true" # for some reason we can't get settings in playWithCustomPlayer()
-    webTorrentClient = subprocess.Popen('webtorrent-hybrid "' +  videoInfo['magnetUrl'] + '" --dlna'+save_path, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    try:
+        webTorrentClient = subprocess.Popen(shlex.split('webtorrent-hybrid "' +  videoInfo['magnetUrl'] + '" --dlna'+save_path), shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    except:
+        return playWebseed(videoInfo)
     print("running with PID " + str(webTorrentClient.pid))
     for stdout_line in webTorrentClient.stdout:
         output += stdout_line.decode()
@@ -631,7 +635,12 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
     except:
         pass
     if seed_after :
-        s=subprocess.Popen('webtorrent-desktop "' +  videoInfo['magnetUrl'] +'" ', shell=True)
+        try:
+            s=subprocess.Popen(shlex.split('webtorrent-desktop "' +  videoInfo['magnetUrl'] +'" '), shell=False)
+        except:
+            dialog = xbmcgui.Dialog()
+            dialog.notification('Not seeding','Unable to start webtorrent-desktop.',xbmcgui.NOTIFICATION_INFO, 10000)
+            xbmc.log("webtorrent desktop exception",xbmc.LOGERROR)
     else:
         xbmc.log("not seeding",xbmc.LOGERROR)
 
