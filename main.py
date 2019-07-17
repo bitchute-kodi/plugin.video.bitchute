@@ -249,6 +249,8 @@ def getSessionCookie():
     cookiesString = xbmcplugin.getSetting(_handle, 'cookies')
     if cookiesString:
         cookies = json.loads(cookiesString)
+        if len(cookies) == 0:
+            cookies = login()
     else:
         cookies = login()
     
