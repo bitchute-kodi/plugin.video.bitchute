@@ -157,13 +157,16 @@ class Channel:
         if thumbnailImages and thumbnailImages[0].has_attr("data-src"):
             self.thumbnail = thumbnailImages[0].get("data-src")
 
-    def setPage(self, pageNumber):
+    def setPage(self, pageNumber, offset = None, lastVid = None):
         self.videos = []
         self.page = pageNumber
         self.hasPrevPage = False
         self.hasNextPage = False
-        
-        r = postLoggedIn(baseUrl + "/channel/" + self.channelName + "/extend/", baseUrl + "/channel/" + self.channelName + "/",{"index": (self.page - 1)})
+        if offset is None:
+			r = postLoggedIn(baseUrl + "/channel/" + self.channelName + "/extend/", baseUrl + "/channel/" + self.channelName + "/",{"index": (self.page - 1)})
+        else:
+			r = postLoggedIn(baseUrl + "/channel/" + self.channelName + "/extend/", baseUrl + "/channel/" + self.channelName + "/",{"offset": (offset), "last": (lastVid)})
+		
         data = json.loads(r.text)
         soup = BeautifulSoup(data['html'], 'html.parser')
 
@@ -440,7 +443,7 @@ def listVideosPlaylist(playlistId, pageNumber = None):
     xbmcplugin.addSortMethod(_handle, xbmcplugin.SORT_METHOD_UNSORTED)
     xbmcplugin.endOfDirectory(_handle)
 
-def listVideos(categoryName, pageNumber = None):
+def listVideos(categoryName, pageNumber = None, offset = 0, lastVid = '0'):
     """
     Create the list of playable videos in the Kodi interface.
     :param category: str
@@ -450,7 +453,7 @@ def listVideos(categoryName, pageNumber = None):
         pageNumber = 1
     # Get the list of videos in the category.
     category = Channel(categoryName, pageNumber)
-    category.setPage(pageNumber)
+    category.setPage(pageNumber, offset, lastVid)
     category.setThumbnail()
     videos = category.videos
     # Create a list for our items.
@@ -481,7 +484,7 @@ def listVideos(categoryName, pageNumber = None):
     # If the category has a next page add it to our listing.
     if category.hasNextPage:
         list_item = xbmcgui.ListItem(label="Next Page...")
-        url = '{0}?action=listing&category={1}&page={2}'.format(_url, category.channelName, category.page + 1)
+        url = '{0}?action=listing&category={1}&page={2}&offset={3}&lastVid={4}'.format(_url, category.channelName, category.page + 1, offset + playlistPageLength, video.id)
         listing.append((url, list_item, True))
 
     # Add our listing to Kodi.
@@ -499,7 +502,7 @@ def channelThumbnailFromChannels(name, channels):
             return channel.thumbnail
     return ""
 
-def listSubscriptionVideos(pageNumber):
+def listSubscriptionVideos(pageNumber, offset, lastVid):
     if pageNumber is None:
         pageNumber = 1
     # find all the channels we are subscribed to and set their thumbnails
@@ -513,7 +516,11 @@ def listSubscriptionVideos(pageNumber):
         channels[-1].thumbnail = thumb
     
     # fetch the actualsubscription videos
-    subscriptionActivity = postLoggedIn(baseUrl + "/extend/", baseUrl,{"name": "subscribed", "index": (pageNumber - 1)})
+	if offset == 0:
+		subscriptionActivity = postLoggedIn(baseUrl + "/extend/", baseUrl,{"name": "subscribed", "index": (pageNumber - 1)})
+	else:
+		subscriptionActivity = postLoggedIn(baseUrl + "/extend/", baseUrl,{"name": "subscribed", "offset": (offset), "last": (lastVid)})
+		
     data = json.loads(subscriptionActivity.text)
     soup = BeautifulSoup(data['html'], 'html.parser')
     videos = []
@@ -534,7 +541,7 @@ def listSubscriptionVideos(pageNumber):
         listing.append((url, list_item, is_folder))
     # Add an entry to get the next page of results.
     list_item = xbmcgui.ListItem(label="Next Page...")
-    url = '{0}?action=subscriptionActivity&page={1}'.format(_url, pageNumber + 1)
+    url = '{0}?action=subscriptionActivity&page={1}&offset={2}&lastVid={3}'.format(_url, pageNumber + 1, offset + playlistPageLength, video.id)
     listing.append((url, list_item, True))
 
     # Add our listing to Kodi.
@@ -662,10 +669,10 @@ def router(paramstring):
     if params:
         if params['action'] == 'listing':
             # Display the list of videos in a provided category.
-            listVideos(params['category'], int(params.get('page', '1')))
+            listVideos(params['category'], int(params.get('page', '1')), int(params.get('offset', '0')), params.get('lastVid', '0'))
         elif params['action'] == 'subscriptionActivity':
             # Display the list of videos from /extend subscriptions
-            listSubscriptionVideos(int(params.get('page', '1')))
+            listSubscriptionVideos(int(params.get('page', '1')), int(params.get('offset', '0')), params.get('lastVid', '0'))
         elif params['action'] == 'play':
             # Play a video from a provided URL.
             playVideo(params['videoId'])
