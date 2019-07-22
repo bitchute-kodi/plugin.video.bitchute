@@ -62,7 +62,7 @@ class VideoLink:
         for link in soup.findAll("a", href=re.compile("^magnet")):
             magnetUrl = link.get("href")
             if magnetUrl.startswith("magnet:?"):
-                xbmc.log(title,xbmc.LOGERROR)
+                xbmc.log(title.encode('utf-8'),xbmc.LOGERROR)
                 return {'magnetUrl':magnetUrl,'title':title , 'poster':poster , 'artist':artist}
         raise ValueError("Could not find the magnet link for this video.")
 
@@ -609,7 +609,7 @@ def playVideo(videoId):
 
 def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_after=False):
     play_item = xbmcgui.ListItem(path=url)
-    xbmc.log(videoInfo['title'],xbmc.LOGERROR)
+    xbmc.log(videoInfo['title'].encode('utf-8'),xbmc.LOGERROR)
     try:
         play_item.setInfo("video",{'title':videoInfo['title'] , 'artist':[videoInfo['artist']]})
         play_item.setArt({'poster':videoInfo['poster']})
