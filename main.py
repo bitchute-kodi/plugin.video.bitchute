@@ -35,7 +35,6 @@ class VideoLink:
         self.id = None
         self.thumbnail = None
         self.channelName = None
-        self.channelNameFull = None
         self.url = None
         self.views = None
         self.duration = None
@@ -121,7 +120,6 @@ class VideoLink:
         try:
             channelNameSoup = videoSoup.findAll('div', 'video-card-text')[0].findAll('p')[1].findAll('a')[0]
             video.channelName = channelNameSoup.get("href").rstrip('/').split("/")[-1]
-            video.channelNameFull = channelNameSoup.text
         except:
             pass
         return video
@@ -158,9 +156,8 @@ class VideoLink:
         return videos
 
 class Channel:
-    def __init__(self, channelName, pageNumber = None, thumbnail = None, channelNameFull = None):
+    def __init__(self, channelName, pageNumber = None, thumbnail = None):
         self.channelName = channelName
-        self.channelNameFull = channelNameFull
         self.videos = []
         self.thumbnail = thumbnail
         self.page = 1
@@ -194,7 +191,6 @@ class Channel:
 
         for video in self.videos:
             video.channelName = self.channelName
-            video.channelNameFull = self.channelNameFull
 
         if len(self.videos) >= 10:
             self.hasNextPage = True
@@ -326,7 +322,6 @@ def getSubscriptions():
     req = fetchLoggedIn(baseUrl + "/subscriptions")
     soup = BeautifulSoup(req.text, 'html.parser')
     for container in soup.findAll("div", {"class":"subscription-container"}):
-        channelNameFull = container.findAll('span', 'subscription-name')
         thumbnail = None
         for thumb in container.findAll("img", {"class":"subscription-image"}):
             if thumb.has_attr("data-src"):
@@ -336,7 +331,7 @@ def getSubscriptions():
         for link in container.findAll("a", {"rel":"author"}):
             href = link.get("href").rstrip('/')
             name = href.split("/")[-1]
-            subscriptions.append(Channel(name, 1, thumbnail, channelNameFull))
+            subscriptions.append(Channel(name, 1, thumbnail))
     return(subscriptions)
 
 sessionCookies = getSessionCookie()
@@ -453,7 +448,7 @@ def listVideosPlaylist(playlistId, pageNumber = None):
         # Here we use the same image as the thumbnail for simplicity's sake.
         list_item.setProperty('fanart_image', video.thumbnail)
         # Set additional info for the list item.
-        list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName.encode('utf-8')+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
+        list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
         list_item.setArt({'landscape': video.thumbnail})
         list_item.setProperty('IsPlayable', 'true')
         url = '{0}?action=play&videoId={1}'.format(_url, video.id)
@@ -492,7 +487,7 @@ def listVideos(categoryName, pageNumber = None, offset = 0, lastVid = '0'):
         # Here we use the same image as the thumbnail for simplicity's sake.
         list_item.setProperty('fanart_image', category.thumbnail)
         # Set additional info for the list item.
-        list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName.encode('utf-8')+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
+        list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
         # Set additional graphics (banner, poster, landscape etc.) for the list item.
         # Again, here we use the same image as the thumbnail for simplicity's sake.
         list_item.setArt({'landscape': video.thumbnail})
@@ -559,7 +554,7 @@ def listSubscriptionVideos(pageNumber, offset, lastVid):
         duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+int(video.duration.split(':')[-3])*3600 if len(video.duration.split(':')) == 3 else 0	
         list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         list_item.setProperty('fanart_image', channelThumbnailFromChannels(video.channelName, channels))
-        list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelNameFull.encode('utf-8')+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
+        list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
         list_item.setArt({'landscape': video.thumbnail})
         list_item.setProperty('IsPlayable', 'true')
         list_item.addContextMenuItems([ ('Refresh', 'Container.Refresh') ], replaceItems=True)
