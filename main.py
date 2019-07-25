@@ -442,7 +442,7 @@ def listVideosPlaylist(playlistId, pageNumber = None):
     listing = []
     videos = VideoLink.getVideosByPlaylist(playlistId, pageNumber-1)
     for video in videos:
-        duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+int(video.duration.split(':')[-3])*3600 if len(video.duration.split(':')) == 3 else 0	
+        duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+((int(video.duration.split(':')[-3])*3600) if len(video.duration.split(':')) == 3 else 0)
         list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         # Set a fanart image for the list item.
         # Here we use the same image as the thumbnail for simplicity's sake.
@@ -480,7 +480,7 @@ def listVideos(categoryName, pageNumber = None, offset = 0, lastVid = '0'):
     listing = []
     # Iterate through videos.
     for video in videos:
-        duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+int(video.duration.split(':')[-3])*3600 if len(video.duration.split(':')) == 3 else 0	
+        duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+((int(video.duration.split(':')[-3])*3600) if len(video.duration.split(':')) == 3 else 0)
         # Create a list item with a text label and a thumbnail image.
         list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         # Set a fanart image for the list item.
@@ -551,7 +551,7 @@ def listSubscriptionVideos(pageNumber, offset, lastVid):
     listing = []
     
     for video in videos:
-        duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+int(video.duration.split(':')[-3])*3600 if len(video.duration.split(':')) == 3 else 0	
+        duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+((int(video.duration.split(':')[-3])*3600) if len(video.duration.split(':')) == 3 else 0)
         list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         list_item.setProperty('fanart_image', channelThumbnailFromChannels(video.channelName, channels))
         list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
