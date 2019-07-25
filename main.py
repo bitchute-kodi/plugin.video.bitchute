@@ -36,6 +36,8 @@ class VideoLink:
         self.thumbnail = None
         self.channelName = None
         self.url = None
+        self.views = None
+        self.duration = None
 
     @staticmethod
     def getUrl(videoId):
@@ -80,6 +82,10 @@ class VideoLink:
         video.pageUrl = linkSoup.get("href")
         video.pageUrl = video.pageUrl.rstrip('/')
         video.id = video.pageUrl.split("/")[-1]
+        durationSoup = containerSoup.findAll('span', 'video-duration')[0]
+        video.duration = durationSoup.text
+        viewsSoup = containerSoup.findAll('span', 'video-views')[0]
+        video.views = viewsSoup.text
 
         #before we can find thumnails let's strip out play button images.
         for playButton in containerSoup.findAll('img', "play-overlay-icon"):
@@ -101,13 +107,19 @@ class VideoLink:
         titleSoup = videoSoup.findAll('div', 'video-card-text')[0].findAll('p')[0].findAll('a')[0]
         video.title = titleSoup.text
 
+        durationSoup = videoSoup.findAll('span', 'video-duration')[0]
+        video.duration = durationSoup.text
+
+        viewsSoup = videoSoup.findAll('span', 'video-views')[0]
+        video.views = viewsSoup.text
+
         thumbnailMatches = videoSoup.findAll('img', "img-responsive")
         if thumbnailMatches:
             video.thumbnail = thumbnailMatches[0].get("data-src")
         #try to find the name of the channel from video-card-text portion of the card.
         try:
             channelNameSoup = videoSoup.findAll('div', 'video-card-text')[0].findAll('p')[1].findAll('a')[0]
-            video.channelName = channelNameSoup.get("href").split("/")[-1]
+            video.channelName = channelNameSoup.get("href").rstrip('/').split("/")[-1]
         except:
             pass
         return video
@@ -118,6 +130,10 @@ class VideoLink:
         video.title = titleSoup.text
         video.pageUrl = titleSoup.get("href").rstrip('/')
         video.id = video.pageUrl.split("/")[-1]
+        durationSoup = container.findAll('span', 'video-duration')[0]
+        video.duration = durationSoup.text
+        viewsSoup = container.findAll('span', 'video-views')[0]
+        video.views = viewsSoup.text
         try:
             channelNameSoup = container.findAll('div', 'text-container')[0].findAll('div', 'channel')[0].findAll('a')[0]
             video.channelName = channelNameSoup.get("href").rstrip('/').split("/")[-1]
@@ -169,9 +185,12 @@ class Channel:
 		
         data = json.loads(r.text)
         soup = BeautifulSoup(data['html'], 'html.parser')
-
+		
         for videoContainer in soup.findAll('div', "channel-videos-container"):
             self.videos.append(VideoLink.getVideoFromChannelVideosContainer(videoContainer))
+
+        for video in self.videos:
+            video.channelName = self.channelName
 
         if len(self.videos) >= 10:
             self.hasNextPage = True
@@ -423,12 +442,13 @@ def listVideosPlaylist(playlistId, pageNumber = None):
     listing = []
     videos = VideoLink.getVideosByPlaylist(playlistId, pageNumber-1)
     for video in videos:
+        duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+((int(video.duration.split(':')[-3])*3600) if len(video.duration.split(':')) == 3 else 0)
         list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         # Set a fanart image for the list item.
         # Here we use the same image as the thumbnail for simplicity's sake.
         list_item.setProperty('fanart_image', video.thumbnail)
         # Set additional info for the list item.
-        list_item.setInfo('video', {'title': video.title, 'genre': video.title})
+        list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
         list_item.setArt({'landscape': video.thumbnail})
         list_item.setProperty('IsPlayable', 'true')
         url = '{0}?action=play&videoId={1}'.format(_url, video.id)
@@ -460,13 +480,14 @@ def listVideos(categoryName, pageNumber = None, offset = 0, lastVid = '0'):
     listing = []
     # Iterate through videos.
     for video in videos:
+        duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+((int(video.duration.split(':')[-3])*3600) if len(video.duration.split(':')) == 3 else 0)
         # Create a list item with a text label and a thumbnail image.
         list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         # Set a fanart image for the list item.
         # Here we use the same image as the thumbnail for simplicity's sake.
         list_item.setProperty('fanart_image', category.thumbnail)
         # Set additional info for the list item.
-        list_item.setInfo('video', {'title': video.title, 'genre': video.title})
+        list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
         # Set additional graphics (banner, poster, landscape etc.) for the list item.
         # Again, here we use the same image as the thumbnail for simplicity's sake.
         list_item.setArt({'landscape': video.thumbnail})
@@ -530,11 +551,13 @@ def listSubscriptionVideos(pageNumber, offset, lastVid):
     listing = []
     
     for video in videos:
+        duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+((int(video.duration.split(':')[-3])*3600) if len(video.duration.split(':')) == 3 else 0)
         list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         list_item.setProperty('fanart_image', channelThumbnailFromChannels(video.channelName, channels))
-        list_item.setInfo('video', {'title': video.title, 'genre': video.title})
+        list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
         list_item.setArt({'landscape': video.thumbnail})
         list_item.setProperty('IsPlayable', 'true')
+        list_item.addContextMenuItems([ ('Refresh', 'Container.Refresh') ], replaceItems=True)
         url = '{0}?action=play&videoId={1}'.format(_url, video.id)
         is_folder = False
         # Add our item to the listing as a 3-element tuple.
