@@ -179,13 +179,13 @@ class Channel:
         self.hasPrevPage = False
         self.hasNextPage = False
         if offset is None:
-			r = postLoggedIn(baseUrl + "/channel/" + self.channelName + "/extend/", baseUrl + "/channel/" + self.channelName + "/",{"index": (self.page - 1)})
+            r = postLoggedIn(baseUrl + "/channel/" + self.channelName + "/extend/", baseUrl + "/channel/" + self.channelName + "/",{"index": (self.page - 1)})
         else:
-			r = postLoggedIn(baseUrl + "/channel/" + self.channelName + "/extend/", baseUrl + "/channel/" + self.channelName + "/",{"offset": (offset), "last": (lastVid)})
-		
+            r = postLoggedIn(baseUrl + "/channel/" + self.channelName + "/extend/", baseUrl + "/channel/" + self.channelName + "/",{"offset": (offset), "last": (lastVid)})
+        
         data = json.loads(r.text)
         soup = BeautifulSoup(data['html'], 'html.parser')
-		
+        
         for videoContainer in soup.findAll('div', "channel-videos-container"):
             self.videos.append(VideoLink.getVideoFromChannelVideosContainer(videoContainer))
 
@@ -537,11 +537,11 @@ def listSubscriptionVideos(pageNumber, offset, lastVid):
         channels[-1].thumbnail = thumb
     
     # fetch the actualsubscription videos
-	if offset == 0:
-		subscriptionActivity = postLoggedIn(baseUrl + "/extend/", baseUrl,{"name": "subscribed", "index": (pageNumber - 1)})
-	else:
-		subscriptionActivity = postLoggedIn(baseUrl + "/extend/", baseUrl,{"name": "subscribed", "offset": (offset), "last": (lastVid)})
-		
+    if offset == 0:
+        subscriptionActivity = postLoggedIn(baseUrl + "/extend/", baseUrl,{"name": "subscribed", "index": (pageNumber - 1)})
+    else:
+        subscriptionActivity = postLoggedIn(baseUrl + "/extend/", baseUrl,{"name": "subscribed", "offset": (offset), "last": (lastVid)})
+        
     data = json.loads(subscriptionActivity.text)
     soup = BeautifulSoup(data['html'], 'html.parser')
     videos = []
@@ -610,8 +610,17 @@ def playVideo(videoId):
     except:
         pass
     seed_after=xbmcplugin.getSetting(_handle, 'seed_after') == "true" # for some reason we can't get settings in playWithCustomPlayer()
+
+    execString = 'webtorrent-hybrid "' +  videoInfo['magnetUrl'] + '" --dlna'+save_path
+    if sys.platform == 'win32':
+        args = execString
+        useShell = True
+    else:
+        args = shlex.split(execString)
+        useShell = False
+
     try:
-        webTorrentClient = subprocess.Popen(shlex.split('webtorrent-hybrid "' +  videoInfo['magnetUrl'] + '" --dlna'+save_path), shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        webTorrentClient = subprocess.Popen(args, shell=useShell, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     except:
         return playWebseed(videoInfo)
     print("running with PID " + str(webTorrentClient.pid))
@@ -667,8 +676,16 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
     except:
         pass
     if seed_after :
+        seedExecString = 'webtorrent-desktop "' +  videoInfo['magnetUrl'] +'" '
+        if sys.platform == 'win32':
+            args = seedExecString
+            useShell = True
+        else:
+            args = shlex.split(seedExecString)
+            useShell = False
+        
         try:
-            s=subprocess.Popen(shlex.split('webtorrent-desktop "' +  videoInfo['magnetUrl'] +'" '), shell=False)
+            s=subprocess.Popen(args, shell=useShell)
         except:
             dialog = xbmcgui.Dialog()
             dialog.notification('Not seeding','Unable to start webtorrent-desktop.',xbmcgui.NOTIFICATION_INFO, 10000)
