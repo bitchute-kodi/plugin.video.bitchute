@@ -646,8 +646,8 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
     except:
         pass
     # Get an instance of xbmc.Player to work with.
-    player = MyPlayer()
-    player.play( url, play_item )
+    #player = MyPlayer()
+    #player.play( url, play_item )
 
     tryCount = 0
     while tryCount < 5:
@@ -659,8 +659,8 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
             xbmc.log("Waiting to try again " + tryCount ,xbmc.LOGERROR)
             time.sleep(10)
     
-    while player.is_active:
-        player.sleep(100)
+    #while player.is_active:
+    #    player.sleep(100)
 
     try:
         webTorrentClient.terminate()
