@@ -610,7 +610,6 @@ def playVideo(videoId):
             playWithCustomPlayer(dlnaUrl, webTorrentClient,videoInfo, seed_after)
 
 def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_after=False):
-    url += '|verifypeer=false'
     play_item = xbmcgui.ListItem(path=url)
     xbmc.log(videoInfo['title'].encode('utf-8'),xbmc.LOGERROR)
     try:
