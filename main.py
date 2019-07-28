@@ -216,34 +216,6 @@ class Playlist:
             playlists.append(playlist)
         return playlists
 
-class MyPlayer(xbmc.Player):
-    def __init__(self):
-        MyPlayer.is_active = True
-        print("#MyPlayer#")
-    
-    def onPlayBackPaused( self ):
-        xbmc.log("#Im paused#")
-        
-    def onPlayBackResumed( self ):
-        xbmc.log("#Im Resumed #")
-        
-    def onPlayBackStarted( self ):
-        print("#Playback Started#")
-        try:
-            print("#Im playing :: " + self.getPlayingFile())
-        except:
-            print("#I failed get what Im playing#")
-            
-    def onPlayBackEnded( self ):
-        print("#Playback Ended#")
-        self.is_active = False
-        
-    def onPlayBackStopped( self ):
-        print("## Playback Stopped ##")
-        self.is_active = False
-    
-    def sleep(self, s):
-        xbmc.sleep(s) 
 def login():
     #BitChute uses a token to prevent csrf attacks, get the token to make our request.
     r = requests.get(baseUrl)
@@ -638,6 +610,7 @@ def playVideo(videoId):
             playWithCustomPlayer(dlnaUrl, webTorrentClient,videoInfo, seed_after)
 
 def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_after=False):
+    url += '|verifypeer=false'
     play_item = xbmcgui.ListItem(path=url)
     xbmc.log(videoInfo['title'].encode('utf-8'),xbmc.LOGERROR)
     try:
@@ -645,9 +618,6 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
         play_item.setArt({'poster':videoInfo['poster']})
     except:
         pass
-    # Get an instance of xbmc.Player to work with.
-    #player = MyPlayer()
-    #player.play( url, play_item )
 
     tryCount = 0
     while tryCount < 5:
@@ -658,9 +628,6 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
         except:
             xbmc.log("Waiting to try again " + tryCount ,xbmc.LOGERROR)
             time.sleep(10)
-    
-    #while player.is_active:
-    #    player.sleep(100)
 
     try:
         webTorrentClient.terminate()
