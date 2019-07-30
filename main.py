@@ -205,6 +205,11 @@ class Playlist:
         playlists = []
         req = fetchLoggedIn(baseUrl + "/playlists/")
         soup = BeautifulSoup(req.text, 'html.parser')
+        favorites = Playlist()
+        favorites.name = 'Favorites'
+        favorites.id = 'favorites'
+        favorites.thumbnail = None
+        playlists.append(favorites)
         for container in soup.findAll("div", {"class": "playlist-card"}):
             playlist = Playlist()
             linkSoup = container.findAll('a')[0]
@@ -312,7 +317,7 @@ def postLoggedIn(url, referer, params):
     post_data = {'csrfmiddlewaretoken': csrftoken}
     for param in params:
         post_data[param] = params[param]
-
+		
     headers = {'Referer': referer, 'Host': 'www.bitchute.com', 'Origin': baseUrl, 'Pragma': 'no-cache', 'Cache-Control': 'no-cache'}
     response = requests.post(url, data=post_data, headers=headers, cookies=sessionCookies)
     return response
@@ -451,6 +456,7 @@ def listVideosPlaylist(playlistId, pageNumber = None):
         list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
         list_item.setArt({'landscape': video.thumbnail})
         list_item.setProperty('IsPlayable', 'true')
+        list_item.addContextMenuItems([ ('Refresh', 'Container.Refresh'), ('Remove from Playlist', 'Container.Update('+'{0}?action=remplaylist&playlistId={1}&videoId={2}'.format(_url,playlistId, video.id)+')') ])
         url = '{0}?action=play&videoId={1}'.format(_url, video.id)
         listing.append((url, list_item, False))
     # If the category has a next page add it to our listing.
@@ -494,6 +500,7 @@ def listVideos(categoryName, pageNumber = None, offset = 0, lastVid = '0'):
         # Set 'IsPlayable' property to 'true'.
         # This is mandatory for playable items!
         list_item.setProperty('IsPlayable', 'true')
+        list_item.addContextMenuItems([ ('Refresh', 'Container.Refresh'), ('Add to Watch-Later', 'Container.Update('+'{0}?action=addplaylist&playlistId={1}&videoId={2}'.format(_url,'watch-later', video.id)+')'),  ('Add to Bitchute Favorites', 'Container.Update('+'{0}?action=addplaylist&playlistId={1}&videoId={2}'.format(_url,'favorites', video.id)+')') ])
         # Create a URL for the plugin recursive callback.
         # Example: plugin://plugin.video.example/?action=play&video=http://www.vidsplay.com/vids/crab.mp4
         url = '{0}?action=play&videoId={1}'.format(_url, video.id)
@@ -557,7 +564,7 @@ def listSubscriptionVideos(pageNumber, offset, lastVid):
         list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
         list_item.setArt({'landscape': video.thumbnail})
         list_item.setProperty('IsPlayable', 'true')
-        list_item.addContextMenuItems([ ('Refresh', 'Container.Refresh') ], replaceItems=True)
+        list_item.addContextMenuItems([ ('Refresh', 'Container.Refresh'), ('Add to Watch-Later', 'Container.Update('+'{0}?action=addplaylist&playlistId={1}&videoId={2}'.format(_url,'watch-later', video.id)+')'),  ('Add to Bitchute Favorites', 'Container.Update('+'{0}?action=addplaylist&playlistId={1}&videoId={2}'.format(_url,'favorites', video.id)+')') ])
         url = '{0}?action=play&videoId={1}'.format(_url, video.id)
         is_folder = False
         # Add our item to the listing as a 3-element tuple.
@@ -676,7 +683,29 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
     else:
         xbmc.log("not seeding",xbmc.LOGERROR)
 
+def addVideosPlaylist(playlistId, videoId):
+    req = postLoggedIn(baseUrl + "/playlist/" + playlistId + "/add/", baseUrl, {"video": videoId})
+    data = json.loads(req.text)
+    if data['success'] is True:
+        dialog = xbmcgui.Dialog()
+        dialog.notification('Success','Video added to '+playlistId,xbmcgui.NOTIFICATION_INFO, 10000)
+        return True
+    else:
+        dialog = xbmcgui.Dialog()
+        dialog.notification('Error','Failed to add Video to '+playlistId,xbmcgui.NOTIFICATION_ERROR, 10000)
+        return False
 
+def remVideosPlaylist(playlistId, videoId):
+    req = postLoggedIn(baseUrl + "/playlist/" + playlistId + "/remove/", baseUrl, {"video": videoId})
+    data = json.loads(req.text)
+    if data['success'] is True:
+        dialog = xbmcgui.Dialog()
+        dialog.notification('Success','Video removed from '+playlistId,xbmcgui.NOTIFICATION_INFO, 10000)
+        return True
+    else:
+        dialog = xbmcgui.Dialog()
+        dialog.notification('Error','Failed to remove Video from '+playlistId,xbmcgui.NOTIFICATION_ERROR, 10000)
+        return False
 
 def router(paramstring):
     """
@@ -705,6 +734,10 @@ def router(paramstring):
             listVideosPlaylist(params['playlistId'], int(params.get('page', '1')))
         elif params['action'] == 'subscriptions':
             listCategories()
+        elif params['action'] == 'addplaylist':
+            addVideosPlaylist(params['playlistId'], params['videoId'])
+        elif params['action'] == 'remplaylist':
+            remVideosPlaylist(params['playlistId'], params['videoId'])
     else:
         # If the plugin is called from Kodi UI without any parameters,
         # display the list of video categories
