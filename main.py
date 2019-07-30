@@ -213,7 +213,7 @@ class Playlist:
         for container in soup.findAll("div", {"class": "playlist-card"}):
             playlist = Playlist()
             linkSoup = container.findAll('a')[0]
-            nameSoup = linkSoup.findAll('span', 'title')[0]
+            nameSoup = linkSoup.findAll('div', 'title')[0]
             thumbnailSoup = linkSoup.findAll('img', "img-responsive")[0]
             playlist.name = nameSoup.text
             playlist.id = linkSoup.get("href").rstrip('/').split("/")[-1]
