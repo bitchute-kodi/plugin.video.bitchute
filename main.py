@@ -456,7 +456,7 @@ def listVideosPlaylist(playlistId, pageNumber = None):
         list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
         list_item.setArt({'landscape': video.thumbnail})
         list_item.setProperty('IsPlayable', 'true')
-        list_item.addContextMenuItems([ ('Refresh', 'Container.Refresh'), ('Remove from Playlist', 'Container.Update('+'{0}?action=remplaylist&playlistId={1}&videoId={2}'.format(_url,playlistId, video.id)+')') ])
+        list_item.addContextMenuItems([ ('Refresh', 'Container.Refresh'), ('Queue video','Action(Queue)'), ('Remove from Playlist', 'Container.Update('+'{0}?action=remplaylist&playlistId={1}&videoId={2}'.format(_url,playlistId, video.id)+')') ])
         url = '{0}?action=play&videoId={1}'.format(_url, video.id)
         listing.append((url, list_item, False))
     # If the category has a next page add it to our listing.
@@ -500,7 +500,7 @@ def listVideos(categoryName, pageNumber = None, offset = 0, lastVid = '0'):
         # Set 'IsPlayable' property to 'true'.
         # This is mandatory for playable items!
         list_item.setProperty('IsPlayable', 'true')
-        list_item.addContextMenuItems([ ('Refresh', 'Container.Refresh'), ('Add to Watch-Later', 'Container.Update('+'{0}?action=addplaylist&playlistId={1}&videoId={2}'.format(_url,'watch-later', video.id)+')'),  ('Add to Bitchute Favorites', 'Container.Update('+'{0}?action=addplaylist&playlistId={1}&videoId={2}'.format(_url,'favorites', video.id)+')') ])
+        list_item.addContextMenuItems([ ('Refresh', 'Container.Refresh'), ('Queue video','Action(Queue)'), ('Add to Watch-Later', 'Container.Update('+'{0}?action=addplaylist&playlistId={1}&videoId={2}'.format(_url,'watch-later', video.id)+')'),  ('Add to Bitchute Favorites', 'Container.Update('+'{0}?action=addplaylist&playlistId={1}&videoId={2}'.format(_url,'favorites', video.id)+')') ])
         # Create a URL for the plugin recursive callback.
         # Example: plugin://plugin.video.example/?action=play&video=http://www.vidsplay.com/vids/crab.mp4
         url = '{0}?action=play&videoId={1}'.format(_url, video.id)
@@ -564,7 +564,7 @@ def listSubscriptionVideos(pageNumber, offset, lastVid):
         list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
         list_item.setArt({'landscape': video.thumbnail})
         list_item.setProperty('IsPlayable', 'true')
-        list_item.addContextMenuItems([ ('Refresh', 'Container.Refresh'), ('Add to Watch-Later', 'Container.Update('+'{0}?action=addplaylist&playlistId={1}&videoId={2}'.format(_url,'watch-later', video.id)+')'),  ('Add to Bitchute Favorites', 'Container.Update('+'{0}?action=addplaylist&playlistId={1}&videoId={2}'.format(_url,'favorites', video.id)+')') ])
+        list_item.addContextMenuItems([ ('Refresh', 'Container.Refresh'), ('Queue video','Action(Queue)'), ('Add to Watch-Later', 'Container.Update('+'{0}?action=addplaylist&playlistId={1}&videoId={2}'.format(_url,'watch-later', video.id)+')'),  ('Add to Bitchute Favorites', 'Container.Update('+'{0}?action=addplaylist&playlistId={1}&videoId={2}'.format(_url,'favorites', video.id)+')') ])
         url = '{0}?action=play&videoId={1}'.format(_url, video.id)
         is_folder = False
         # Add our item to the listing as a 3-element tuple.
