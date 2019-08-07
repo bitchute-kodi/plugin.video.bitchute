@@ -98,7 +98,7 @@ class VideoLink:
     @staticmethod
     def getVideoFromVideoCard(videoSoup):
         video = VideoLink()
-        linkSoup = videoSoup.findAll('a')[0]
+        linkSoup = videoSoup.findAll('a')[1]
 
         video.pageUrl = linkSoup.get("href")
         video.pageUrl = video.pageUrl.rstrip('/')
@@ -128,7 +128,7 @@ class VideoLink:
         video = VideoLink()
         titleSoup = container.findAll('div', 'text-container')[0].findAll('div', 'title')[0].findAll('a')[0]
         video.title = titleSoup.text
-        video.pageUrl = titleSoup.get("href").rstrip('/')
+        video.pageUrl = titleSoup.get("href").rsplit('/',1)[0]
         video.id = video.pageUrl.split("/")[-1]
         durationSoup = container.findAll('span', 'video-duration')[0]
         video.duration = durationSoup.text
