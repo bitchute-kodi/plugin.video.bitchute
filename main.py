@@ -601,11 +601,11 @@ def playWebseed(videoInfo,message=None,duration=0):
     if message!=None and duration!=0:
             dialog = xbmcgui.Dialog()
             dialog.notification('Playing from webseed',message,xbmcgui.NOTIFICATION_INFO, duration*1000)
-    playWithCustomPlayer(dlnaUrl, None,videoInfo, seed_after)
+    playWithCustomPlayer(dlnaUrl, None,videoInfo, seed_after,False)
     return True
  
 def playVideo(videoId):
-    print(videoId)
+    xbmc.log("bitchute PlayVideo: "+videoId,xbmc.LOGERROR)
     videoInfo = VideoLink.getInfo(videoId)
     playing = 0
     # start webtorrent fetching path
@@ -646,7 +646,6 @@ def playVideo(videoId):
     
     for stdout_line in iter(webTorrentClient.stdout.readline,b''): ## iter because of a read-ahead bug , as described here : https://stackoverflow.com/questions/2715847/read-streaming-input-from-subprocess-communicate/17698359#17698359
         xbmc.log("webtorrent:  "+stdout_line,xbmc.LOGERROR)
-        print("webtorrent:  "+stdout_line)
         if "fetching torrent metadata from" in stdout_line:
             xbmc.log("Fetching metadata.",xbmc.LOGERROR)
             import threading
@@ -696,7 +695,7 @@ def playVideo(videoId):
             playing = 1
             playWithCustomPlayer(dlnaUrl, webTorrentClient,videoInfo, seed_after)
 
-def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_after=False):
+def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_after=False,title_with_progress=True):
     play_item = xbmcgui.ListItem(path=url)
     xbmc.log(videoInfo['title'].encode('utf-8'),xbmc.LOGERROR)
     try:
@@ -718,7 +717,55 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
             xbmc.log("Waiting to try again " + tryCount ,xbmc.LOGERROR)
             time.sleep(10)
     
+    webtorrent_seeding=False
+    old_title=videoInfo['title']
+    new_title=videoInfo['title']
+    #player.updateInfoTag(play_item)
     while player.is_active:
+        if not webtorrent_seeding and title_with_progress:
+            webtorrent_progress_lines=20
+            for stdout_line in iter(webTorrentClient.stdout.readline,b''): 
+                if webtorrent_progress_lines<1:
+                    break
+                else:
+                    webtorrent_progress_lines-=1
+                if "Seeding:" in stdout_line:
+                    webtorrent_seeding=True
+                    play_item.setInfo("video",{'title':videoInfo['title'] , 'artist':[videoInfo['artist']]})
+                    try:
+                        player.updateInfoTag(play_item)
+                    except:
+                        pass
+                    xbmc.log("Webtorrent: seeding",xbmc.LOGERROR) 
+                else:
+                    webtorrent_progress=re.match(".*Speed: \\x1b\[39m\\x1b\[1m(?P<speed>.*)\\x1b\[22m .*Downloaded:\\x1b\[39m \\x1b\[1m(?P<progress>.*)\\x1b\[22m/\\x1b\[1m(?P<size>.*)\\x1b\[22m .*Uploaded:.*",stdout_line)
+                    #xbmc.log("Webtorrent stdout_line: "+stdout_line,xbmc.LOGERROR) 
+                    #xbmc.log("Webtorrent stdout_line repr: "+repr(stdout_line),xbmc.LOGERROR) 
+                    #xbmc.log("Webtorrent: progress_re: "+str(webtorrent_progress),xbmc.LOGERROR) 
+                    if webtorrent_progress:
+                        #xbmc.log("Webtorrent: progress got re ",xbmc.LOGERROR) 
+                        #xbmc.log("Webtorrent: progress_re: "+str(webtorrent_progress),xbmc.LOGERROR) 
+                        
+                        webtorrent_progress=webtorrent_progress.groupdict()
+                        xbmc.log("Webtorrent: progress_re: "+"["+webtorrent_progress['progress']+"/"+webtorrent_progress['size']+"@"+webtorrent_progress['speed']+"]",xbmc.LOGERROR) 
+                        new_title= "["+''.join(webtorrent_progress['progress'].split())+"/"+''.join(webtorrent_progress['size'].split())+"@"+''.join(webtorrent_progress['speed'].split())+"]"+videoInfo['title']
+                        if new_title!=old_title:
+                            old_title=new_title
+                            play_item.setInfo("video",{'title': new_title , 'artist':[videoInfo['artist']]})
+                            try:
+                                player.updateInfoTag(play_item)
+                            except:
+                                pass
+                        if webtorrent_seeding:
+                            xbmc.log("Webtorrent: seeding , should no longer process output",xbmc.LOGERROR) 
+                            play_item.setInfo("video",{'title':videoInfo['title'] , 'artist':[videoInfo['artist']]})
+                            try:
+                                player.updateInfoTag(play_item)
+                            except:
+                                pass
+                            break
+            xbmc.log("player.sleep",xbmc.LOGERROR) 
+
         player.sleep(100)
 
     try:
