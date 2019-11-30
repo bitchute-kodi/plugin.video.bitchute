@@ -64,9 +64,11 @@ class VideoLink:
         for link in soup.findAll("a", href=re.compile("^magnet")):
             magnetUrl = link.get("href")
             if magnetUrl.startswith("magnet:?"):
-                xbmc.log(title.encode('utf-8'),xbmc.LOGERROR)
                 return {'magnetUrl':magnetUrl,'title':title , 'poster':poster , 'artist':artist}
-        raise ValueError("Could not find the magnet link for this video.")
+        try:
+            return {'WebseedUrl':soup.findAll("video")[0].source.get("src"),'title':title , 'poster':poster , 'artist':artist}
+        except:
+            raise ValueError("Could not find the magnet link for this video.")
 
     def setUrl(self):
         self.url = self.getUrl(videoId)
@@ -583,7 +585,8 @@ def listSubscriptionVideos(pageNumber, offset, lastVid):
     # Finish creating a virtual folder.
     xbmcplugin.endOfDirectory(_handle)
 
-def playWebseed(videoInfo):
+def playWebseed(videoInfo,message=None,duration=0):
+    if videoInfo.has_key("magnetUrl"):
         import random
         webseeds=[]
         for url_el in videoInfo['magnetUrl'].split("&"):
@@ -591,18 +594,23 @@ def playWebseed(videoInfo):
                 webseeds.append(url_el[3:])
         import random
         dlnaUrl=random.choice(webseeds)
-        xbmc.log("playing from webseed: "+dlnaUrl,xbmc.LOGERROR)
-        seed_after=False
-        dialog = xbmcgui.Dialog()
-        dialog.notification('Playing from webseed','Make sure that webtorrent-hybrid is installed and working for best results.',xbmcgui.NOTIFICATION_INFO, 30000)
-        playWithCustomPlayer(dlnaUrl, None,videoInfo, seed_after)
-        return True
+    elif videoInfo.has_key("WebseedUrl"):
+        dlnaUrl=videoInfo['WebseedUrl']
+    xbmc.log("playing from webseed: "+dlnaUrl,xbmc.LOGERROR)
+    seed_after=False
+    if message!=None and duration!=0:
+            dialog = xbmcgui.Dialog()
+            dialog.notification('Playing from webseed',message,xbmcgui.NOTIFICATION_INFO, duration*1000)
+    playWithCustomPlayer(dlnaUrl, None,videoInfo, seed_after)
+    return True
  
 def playVideo(videoId):
     print(videoId)
     videoInfo = VideoLink.getInfo(videoId)
     playing = 0
     # start webtorrent fetching path
+    if not videoInfo.has_key("magnetUrl"):
+        return playWebseed(videoInfo,message='Unable to find Magnet link.',duration=15)
     output = ""
     cnt = 0
     dlnaUrl = None
@@ -629,13 +637,48 @@ def playVideo(videoId):
     try:
         webTorrentClient = subprocess.Popen(args, shell=useShell, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     except:
-        return playWebseed(videoInfo)
-    print("running with PID " + str(webTorrentClient.pid))
-    for stdout_line in webTorrentClient.stdout:
+        return playWebseed(videoInfo,message='Make sure that webtorrent-hybrid is installed and working for best results.',duration=30)
+    xbmc.log("running with PID " + str(webTorrentClient.pid),xbmc.LOGERROR)
+    
+
+    has_metadata_timer=False
+    has_verifying_dialog=False
+    
+    for stdout_line in iter(webTorrentClient.stdout.readline,b''): ## iter because of a read-ahead bug , as described here : https://stackoverflow.com/questions/2715847/read-streaming-input-from-subprocess-communicate/17698359#17698359
+        xbmc.log("webtorrent:  "+stdout_line,xbmc.LOGERROR)
+        print("webtorrent:  "+stdout_line)
+        if "fetching torrent metadata from" in stdout_line:
+            xbmc.log("Fetching metadata.",xbmc.LOGERROR)
+            import threading
+            metadata_timer=threading.Timer(15.0,webTorrentClient.kill)
+            metadata_timer.start()
+            xbmc.log("Started timer " + str(webTorrentClient.pid),xbmc.LOGERROR)
+            has_metadata_timer=True
+        elif has_metadata_timer:
+            metadata_timer.cancel()
+            has_metadata_timer=False
+            xbmc.log("Fetched metadata, timer canceled.",xbmc.LOGERROR)
+
+        if "verifying existing torrent data..." in stdout_line:
+            verifying_dialog = xbmcgui.DialogProgressBG()
+            verifying_dialog.create('Verifying data',"Verifying existing torrent data...")
+            has_verifying_dialog=True
+            xbmc.log("Verifying notification started.",xbmc.LOGERROR)
+        elif has_verifying_dialog:
+            has_verifying_dialog=False
+            try:
+                verifying_dialog.close()
+                xbmc.log("Verifying notification closed.",xbmc.LOGERROR)
+            except:
+                pass
+            
         output += stdout_line.decode()
         cnt += 1
         if cnt > 10:
             break
+        
+    if has_metadata_timer:
+        return playWebseed(videoInfo,message='Fetching torrent metadata timed out, playing from webseed',duration=10)
 
     dlnaMatches = re.search('http:\/\/((\w|\d)+(\.)*)+:\d+\/\d+', output)
     if dlnaMatches:
@@ -643,7 +686,7 @@ def playVideo(videoId):
     else:
         xbmc.log("could not determine the dlna URL.",xbmc.LOGERROR) 
         webTorrentClient.terminate()
-        return playWebseed(videoInfo)
+        return playWebseed(videoInfo,message='Could not determine the dlna URL.Make sure that webtorrent-hybrid is installed and working for best results.',duration=10)
 
     xbmc.log("Streaming at: " + dlnaUrl, xbmc.LOGERROR)
     xbmc.log("seed_after="+str(seed_after), xbmc.LOGERROR)
