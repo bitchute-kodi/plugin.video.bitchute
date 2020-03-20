@@ -68,7 +68,13 @@ class VideoLink:
         try:
             return {'WebseedUrl':soup.findAll("video")[0].source.get("src"),'title':title , 'poster':poster , 'artist':artist}
         except:
-            raise ValueError("Could not find the magnet link for this video.")
+            try:
+                txt=req.text[req.text.find("sourceMP4.src"):]
+                txt=txt[txt.find('"')+1:]
+                txt=txt[:txt.find('"')]
+                return {'WebseedUrl':txt,'title':title , 'poster':poster , 'artist':artist}
+            except:
+                raise ValueError("Could not find the magnet link for this video."+txt)
 
     def setUrl(self):
         self.url = self.getUrl(videoId)
