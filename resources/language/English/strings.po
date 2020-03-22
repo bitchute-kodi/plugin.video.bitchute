@@ -35,3 +35,9 @@ msgstr ""
 msgctxt "#32016"
 msgid "Seed with webtorrent-dekstop after playing ( save path needs to be the same as above )"
 msgstr ""
+
+msgctxt "#32018"
+msgid "Prefer using MPEG-DASH when playing from WebSeed ( with inputstream.adaptive )"
+msgstr ""
+
+
