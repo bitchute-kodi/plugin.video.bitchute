@@ -61,12 +61,25 @@ class VideoLink:
             artist=soup.find("meta",attrs={'name':"twitter:title"})['content']
         except:
             artist=""
+        try:
+            if req.text.find("this.videoUrl = '")==-1:
+                raise ValueError("No DASH url found")
+            txt=req.text[req.text.find("this.videoUrl = '"):]
+            txt=txt[txt.find("'")+1:]
+            txt=txt[:txt.find("';")]
+            if ".mpd" not in txt:
+                xbmc.log("wrong mpd url : "+txt,xbmc.LOGERROR)
+                raise ValueError("Wrong DASH url found")
+            mpd_url=txt
+
+        except:
+            mpd_url=""
         for link in soup.findAll("a", href=re.compile("^magnet")):
             magnetUrl = link.get("href")
             if magnetUrl.startswith("magnet:?"):
-                return {'magnetUrl':magnetUrl,'title':title , 'poster':poster , 'artist':artist}
+                return {'magnetUrl':magnetUrl,'title':title , 'poster':poster , 'artist':artist , 'mpd_url':mpd_url}
         try:
-            return {'WebseedUrl':soup.findAll("video")[0].source.get("src"),'title':title , 'poster':poster , 'artist':artist}
+            return {'WebseedUrl':soup.findAll("video")[0].source.get("src"),'title':title , 'poster':poster , 'artist':artist , 'mpd_url':mpd_url}
         except:
             try:
                 if req.text.find("sourceMP4.src")==-1:
@@ -74,7 +87,7 @@ class VideoLink:
                 txt=req.text[req.text.find("sourceMP4.src"):]
                 txt=txt[txt.find('"')+1:]
                 txt=txt[:txt.find('"')]
-                return {'WebseedUrl':txt,'title':title , 'poster':poster , 'artist':artist}
+                return {'WebseedUrl':txt,'title':title , 'poster':poster , 'artist':artist , 'mpd_url':mpd_url}
             except:
                 raise ValueError("Could not find the magnet link for this video.")
 
@@ -593,7 +606,7 @@ def listSubscriptionVideos(pageNumber, offset, lastVid):
     # Finish creating a virtual folder.
     xbmcplugin.endOfDirectory(_handle)
 
-def playWebseed(videoInfo,message=None,duration=0):
+def playWebseed(videoInfo,message=None,duration=0,prefer_dash=False):
     if videoInfo.has_key("magnetUrl"):
         import random
         webseeds=[]
@@ -609,16 +622,18 @@ def playWebseed(videoInfo,message=None,duration=0):
     if message!=None and duration!=0:
             dialog = xbmcgui.Dialog()
             dialog.notification('Playing from webseed',message,xbmcgui.NOTIFICATION_INFO, duration*1000)
-    playWithCustomPlayer(dlnaUrl, None,videoInfo, seed_after,False)
+    playWithCustomPlayer(dlnaUrl, None,videoInfo, seed_after,False,prefer_dash=prefer_dash)
     return True
  
 def playVideo(videoId):
     xbmc.log("bitchute PlayVideo: "+videoId,xbmc.LOGERROR)
     videoInfo = VideoLink.getInfo(videoId)
+    prefer_dash=xbmcplugin.getSetting(_handle, 'prefer_dash') == "true" 
+    xbmc.log("prefer_dash : "+str(prefer_dash),xbmc.LOGERROR)
     playing = 0
     # start webtorrent fetching path
     if not videoInfo.has_key("magnetUrl"):
-        return playWebseed(videoInfo,message='Unable to find Magnet link.',duration=15)
+        return playWebseed(videoInfo,message='Unable to find Magnet link.',duration=15,prefer_dash=prefer_dash)
     output = ""
     cnt = 0
     dlnaUrl = None
@@ -633,7 +648,6 @@ def playVideo(videoId):
     except:
         pass
     seed_after=xbmcplugin.getSetting(_handle, 'seed_after') == "true" # for some reason we can't get settings in playWithCustomPlayer()
-
     execString = 'webtorrent-hybrid "' +  videoInfo['magnetUrl'] + '" --dlna'+save_path
     if sys.platform == 'win32':
         args = execString
@@ -645,7 +659,7 @@ def playVideo(videoId):
     try:
         webTorrentClient = subprocess.Popen(args, shell=useShell, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     except:
-        return playWebseed(videoInfo,message='Make sure that webtorrent-hybrid is installed and working for best results.',duration=30)
+        return playWebseed(videoInfo,message='Make sure that webtorrent-hybrid is installed and working for best results.',duration=30,prefer_dash=prefer_dash)
     xbmc.log("running with PID " + str(webTorrentClient.pid),xbmc.LOGERROR)
     
 
@@ -685,7 +699,7 @@ def playVideo(videoId):
             break
         
     if has_metadata_timer:
-        return playWebseed(videoInfo,message='Fetching torrent metadata timed out, playing from webseed',duration=10)
+        return playWebseed(videoInfo,message='Fetching torrent metadata timed out, playing from webseed',duration=10,prefer_dash=prefer_dash)
 
     dlnaMatches = re.search('http:\/\/((\w|\d)+(\.)*)+:\d+\/\d+', output)
     if dlnaMatches:
@@ -693,7 +707,7 @@ def playVideo(videoId):
     else:
         xbmc.log("could not determine the dlna URL.",xbmc.LOGERROR) 
         webTorrentClient.terminate()
-        return playWebseed(videoInfo,message='Could not determine the dlna URL.Make sure that webtorrent-hybrid is installed and working for best results.',duration=10)
+        return playWebseed(videoInfo,message='Could not determine the dlna URL.Make sure that webtorrent-hybrid is installed and working for best results.',duration=10,prefer_dash=prefer_dash)
 
     xbmc.log("Streaming at: " + dlnaUrl, xbmc.LOGERROR)
     xbmc.log("seed_after="+str(seed_after), xbmc.LOGERROR)
@@ -703,9 +717,17 @@ def playVideo(videoId):
             playing = 1
             playWithCustomPlayer(dlnaUrl, webTorrentClient,videoInfo, seed_after)
 
-def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_after=False,title_with_progress=True):
-    play_item = xbmcgui.ListItem(path=url)
+def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_after=False,title_with_progress=True,prefer_dash=False):
     xbmc.log(videoInfo['title'].encode('utf-8'),xbmc.LOGERROR)
+    if webTorrentClient==None and prefer_dash  and 'mpd_url' in videoInfo and videoInfo['mpd_url']!="":
+        url=videoInfo['mpd_url']
+        play_item = xbmcgui.ListItem(path=url)
+        play_item.setProperty('inputstreamaddon', 'inputstream.adaptive')
+        play_item.setProperty('inputstream.adaptive.manifest_type', 'mpd')
+    else:
+        play_item = xbmcgui.ListItem(path=url)
+
+    xbmc.log("playing url: "+str(url),xbmc.LOGERROR)
     try:
         play_item.setInfo("video",{'title':videoInfo['title'] , 'artist':[videoInfo['artist']]})
         play_item.setArt({'poster':videoInfo['poster']})
