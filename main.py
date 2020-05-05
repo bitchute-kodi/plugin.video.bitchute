@@ -725,7 +725,8 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
         play_item.setProperty('inputstreamaddon', 'inputstream.adaptive')
         play_item.setProperty('inputstream.adaptive.manifest_type', 'mpd')
     else:
-        play_item = xbmcgui.ListItem(path=url)
+        import urllib
+        play_item = xbmcgui.ListItem(path=urllib.unquote(url))
 
     xbmc.log("playing url: "+str(url),xbmc.LOGERROR)
     try:
@@ -735,7 +736,7 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
         pass
     # Get an instance of xbmc.Player to work with.
     player = MyPlayer()
-    player.play( url, play_item )
+    #player.play( url, play_item )
 
     tryCount = 0
     while tryCount < 5:
