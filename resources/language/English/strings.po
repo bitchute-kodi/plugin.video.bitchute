@@ -29,7 +29,7 @@ msgid "Password"
 msgstr ""
 
 msgctxt "#32015"
-msgid "Save path ( leave empty to not save videos )"
+msgid "Save path "
 msgstr ""
 
 msgctxt "#32016"
@@ -40,4 +40,48 @@ msgctxt "#32018"
 msgid "Prefer using MPEG-DASH when playing from WebSeed ( with inputstream.adaptive )"
 msgstr ""
 
+msgctxt "#32019"
+msgid "Ask whether to seed videos before playback?( Default answer after timeout will be no )"
+msgstr ""
+
+msgctxt "#32020"
+msgid "Seed dialog timeout"
+msgstr ""
+
+msgctxt "#32021"
+msgid "Save videos? ( only applies when webtorrent playback works, not when falling back to webseed )"
+msgstr ""
+
+msgctxt "#32022"
+msgid "Delete video if not seeding?"
+msgstr ""
+
+msgctxt "#32023"
+msgid "Confirm not seeding videos after playback?( Default answer after timeout will be no )"
+msgstr ""
+
+
+msgctxt "#32050"
+msgid "Advanced"
+msgstr ""
+
+msgctxt "#32051"
+msgid "Workaround - Fix magnet link by adding correct .webtorrent file locations"
+msgstr ""
+
+msgctxt "#32052"
+msgid "Add webseeds to magnet link"
+msgstr ""
+
+msgctxt "#32053"
+msgid "list of known good webseeds"
+msgstr ""
+
+msgctxt "#32054"
+msgid "Workaround - generate magnet link for exclusives ( experimental , they are usually not encoded to play properly while downloading )"
+msgstr ""
+
+msgctxt "#32055"
+msgid "Add download status control label ( experimental, this can sometimes break your kodi until it's closed and reopened )"
+msgstr ""
 
