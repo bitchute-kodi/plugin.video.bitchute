@@ -412,10 +412,15 @@ def getSessionCookie():
     
     #If our cookies have expired we'll need to get new ones.
     now = int(time.time())
-    for cookie in cookies:
-        if now >= cookie['expires']:
+    try:
+     for cookie in cookies:
+        if cookie['expires']!=None and now >= cookie['expires']:
             cookies = login()
             break
+    except:
+        xbmc.log("cookies:  "+str(cookies),xbmc.LOGERROR)
+        cookies = login()
+        xbmc.log("cookies:  "+str(cookies),xbmc.LOGERROR)
     
     jar = requests.cookies.RequestsCookieJar()
     for cookie in cookies:
@@ -545,7 +550,10 @@ def listCategories():
     # Iterate through categories
     for category in categories:
         # Create a list item with a text label and a thumbnail image.
-        list_item = xbmcgui.ListItem(label=category.channelName, thumbnailImage=category.thumbnail)
+        if sys.version_info>=(3,0):
+            list_item = xbmcgui.ListItem(label=category.channelName)
+        else:
+            list_item = xbmcgui.ListItem(label=category.channelName, thumbnailImage=category.thumbnail)
         # Set a fanart image for the list item.
         # Here we use the same image as the thumbnail for simplicity's sake.
         list_item.setProperty('fanart_image', category.thumbnail)
@@ -623,7 +631,10 @@ def listVideos(categoryName, pageNumber = None, offset = 0, lastVid = '0'):
     for video in videos:
         duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+((int(video.duration.split(':')[-3])*3600) if len(video.duration.split(':')) == 3 else 0)
         # Create a list item with a text label and a thumbnail image.
-        list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
+        if sys.version_info>=(3,0):
+            list_item = xbmcgui.ListItem(label=video.title)
+        else:
+            list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         # Set a fanart image for the list item.
         # Here we use the same image as the thumbnail for simplicity's sake.
         list_item.setProperty('fanart_image', category.thumbnail)
@@ -694,7 +705,10 @@ def listSubscriptionVideos(pageNumber, offset, lastVid):
     
     for video in videos:
         duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+((int(video.duration.split(':')[-3])*3600) if len(video.duration.split(':')) == 3 else 0)
-        list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
+        if sys.version_info>=(3,0):
+            list_item = xbmcgui.ListItem(label=video.title)
+        else:
+            list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         list_item.setProperty('fanart_image', channelThumbnailFromChannels(video.channelName, channels))
         list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
         list_item.setArt({'landscape': video.thumbnail})
@@ -780,8 +794,8 @@ def playVideo(videoId):
     has_verifying_dialog=False
     
     for stdout_line in iter(webTorrentClient.stdout.readline,b''): ## iter because of a read-ahead bug , as described here : https://stackoverflow.com/questions/2715847/read-streaming-input-from-subprocess-communicate/17698359#17698359
-        xbmc.log("webtorrent:  "+stdout_line,xbmc.LOGERROR)
-        if "fetching torrent metadata from" in stdout_line:
+        xbmc.log("webtorrent:  "+stdout_line.decode(),xbmc.LOGERROR)
+        if "fetching torrent metadata from" in stdout_line.decode():
             xbmc.log("Fetching metadata.",xbmc.LOGERROR)
             import threading
             metadata_timer=threading.Timer(25.0,webTorrentClient.kill)
@@ -793,7 +807,7 @@ def playVideo(videoId):
             has_metadata_timer=False
             xbmc.log("Fetched metadata, timer canceled.",xbmc.LOGERROR)
 
-        if "verifying existing torrent data..." in stdout_line:
+        if "verifying existing torrent data..." in stdout_line.decode():
             verifying_dialog = xbmcgui.DialogProgressBG()
             verifying_dialog.create('Verifying data',"Verifying existing torrent data...")
             has_verifying_dialog=True
@@ -833,7 +847,7 @@ def playVideo(videoId):
 
 
 def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_after=False,title_with_progress=True,prefer_dash=False):
-    xbmc.log(videoInfo['title'].encode('utf-8'),xbmc.LOGERROR)
+    #xbmc.log(str(videoInfo['title'].encode('utf-8')),xbmc.LOGERROR)
     #if webTorrentClient!=None :
         #time.sleep(5)
     if webTorrentClient==None and prefer_dash  and 'mpd_url' in videoInfo and videoInfo['mpd_url']!="":
@@ -878,7 +892,10 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
             added_ctrls.append({'window':window_h,'label':webtorrent_status_label})
 
         if "ask_seed" in my_settings_set and my_settings_set["ask_seed"]:
-            dia=xbmcgui.Dialog().yesno(heading="Seed?",line1="Seed?",autoclose=my_settings_set["ask_seed_timeout"])
+            if sys.version_info>=(3,0):
+                dia=xbmcgui.Dialog().yesno(heading="Seed?",message="Seed?",autoclose=my_settings_set["ask_seed_timeout"])
+            else:
+                dia=xbmcgui.Dialog().yesno(heading="Seed?",line1="Seed?",autoclose=my_settings_set["ask_seed_timeout"])
             ask_seed_answered=True
             my_settings_set.update({"ask_seed_answered":True})
             xbmc.log("seed_dia: " + str(dia),xbmc.LOGERROR)
@@ -895,10 +912,10 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
                     break
                 else:
                     webtorrent_progress_lines-=1
-                if "Seeding:" in stdout_line:
+                if "Seeding:" in stdout_line.decode():
                     webtorrent_seeding=True
                     play_item.setInfo("video",{'title':videoInfo['title'] , 'artist':[videoInfo['artist']]})
-                    file_m=re.match(".*Seeding: \\x1b\[39m\\x1b\[1m(?P<file>.*)\\x1b\[22m",stdout_line)
+                    file_m=re.match(".*Seeding: \\x1b\[39m\\x1b\[1m(?P<file>.*)\\x1b\[22m",stdout_line.decode())
                     if file_m:
                         vid_file["file"]=file_m.groupdict()["file"]
                     try:
@@ -927,11 +944,11 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
 
 
                 else:
-                    webtorrent_progress=re.match(".*Speed: \\x1b\[39m\\x1b\[1m(?P<speed>.*)\\x1b\[22m .*Downloaded:\\x1b\[39m \\x1b\[1m(?P<progress>.*)\\x1b\[22m/\\x1b\[1m(?P<size>.*)\\x1b\[22m .*Uploaded:.*",stdout_line)
-                    dir_m=re.match(".*Downloading to: \\x1b\[39m\\x1b\[1m(?P<dir>.*)\\x1b\[22m",stdout_line)
+                    webtorrent_progress=re.match(".*Speed: \\x1b\[39m\\x1b\[1m(?P<speed>.*)\\x1b\[22m .*Downloaded:\\x1b\[39m \\x1b\[1m(?P<progress>.*)\\x1b\[22m/\\x1b\[1m(?P<size>.*)\\x1b\[22m .*Uploaded:.*",stdout_line.decode())
+                    dir_m=re.match(".*Downloading to: \\x1b\[39m\\x1b\[1m(?P<dir>.*)\\x1b\[22m",stdout_line.decode())
                     if dir_m:
                         vid_file["dir"]=dir_m.groupdict()["dir"]
-                    file_m=re.match(".*Downloading: \\x1b\[39m\\x1b\[1m(?P<file>.*)\\x1b\[22m",stdout_line)
+                    file_m=re.match(".*Downloading: \\x1b\[39m\\x1b\[1m(?P<file>.*)\\x1b\[22m",stdout_line.decode())
                     if file_m:
                         vid_file["file"]=file_m.groupdict()["file"]
 
@@ -977,7 +994,11 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
             xbmc.log(str(e),xbmc.LOGERROR)
         
     if webTorrentClient!=None and "ask_seed" in my_settings_set and my_settings_set["ask_seed"] and ( ( seed_after and not ask_seed_answered ) or ( not seed_after and "confirm_no_seed" in my_settings_set and my_settings_set["confirm_no_seed"]) ):
-        dia=xbmcgui.Dialog().yesno(heading="Seed?",line1="Seed?",autoclose=my_settings_set["ask_seed_timeout"])
+        if sys.version_info>=(3,0):
+           dia=xbmcgui.Dialog().yesno(heading="Seed?",message="Seed?",autoclose=my_settings_set["ask_seed_timeout"])
+        else:
+           dia=xbmcgui.Dialog().yesno(heading="Seed?",line1="Seed?",autoclose=my_settings_set["ask_seed_timeout"])
+ 
         xbmc.log("seed_dia: " + str(dia),xbmc.LOGERROR)
         my_settings_set.update({"ask_seed_answered":True})
         if dia:
