@@ -4,8 +4,20 @@
         <setting label="32011" type="text"   id="username" default=""/>
         <setting label="32012" type="text"   id="password" option="hidden"  enable="!eq(-1,)" default=""/>
         <setting label="32014" type="text"   id="cookies" visible="false" default=""/>
-        <setting label="32015" type="folder"   id="save_path"  default=""/>
-        <setting label="32016" type="bool"   id="seed_after"  default="false"/>
+        <setting label="32021" type="bool"   id="save"  default="false" />
+        <setting label="32015" type="folder"   id="save_path"  default="" enable="!eq(-1,False)"/>
+        <setting label="32016" type="bool"   id="seed_after"  default="false" enable="!eq(-1,)+!eq(-2,False)"/>
         <setting label="32018" type="bool"   id="prefer_dash"  default="false"/>
+	<setting label="32019" type="bool"   id="ask_seed"     default="false" enable="!eq(-2,False)" />
+        <setting label="32023" type="bool"   id="confirm_no_seed"     default="false" enable="!eq(-1,False)" visible="!eq(-1,False)" />
+	<setting label="32022" type="bool"   id="del_if_not_seed"     default="false" enable="!eq(-2,False)" visible="!eq(-2,False)" />
+	<setting label="32020" type="number"   id="ask_seed_timeout"     default="4" visible="!eq(-3,False)" />
+    </category>
+    <category label="32050">
+        <setting label="32051" type="bool"   id="workaround_torrent_add_xs"  default="true" />
+        <setting label="32052" type="bool"   id="add_webseeds"  default="true" />
+        <setting label="32053" type="text"   id="known_good_webseeds" default="https://seed191.bitchute.com;https://seed111.bitchute.com;https://seedxvj21.bitchute.com;https://seed163.bitchute.com;https://seed1sjt3.bitchute.com;https://seedp29xb.bitchute.com;https://seed122.bitchute.com"/>
+        <setting label="32054" type="bool"   id="workaround_torrent_generate_magnet"  default="false" />
+        <setting label="32055" type="bool"   id="experimental_status_label"  default="false" />
     </category>
 </settings>

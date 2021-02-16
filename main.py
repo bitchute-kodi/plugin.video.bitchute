@@ -5,8 +5,11 @@
 # Based on plugin.video.example(https://github.com/romanvm/plugin.video.example)
 # License: MIT https://opensource.org/licenses/MIT
 
+#from __future__ import print_function; # from builtins import str ; from builtins import object 
+from future import standard_library
+standard_library.install_aliases()
 import sys
-from urlparse import parse_qsl
+from urllib.parse import parse_qsl
 import xbmcgui
 import xbmcplugin
 import xbmcaddon
@@ -17,7 +20,7 @@ import time
 from bs4 import BeautifulSoup
 import subprocess
 import shlex
-
+import urllib.request, urllib.parse, urllib.error
 import xbmc
 
 # Get the plugin url in plugin:// notation.
@@ -27,8 +30,27 @@ _handle = int(sys.argv[1])
 baseUrl = "https://www.bitchute.com"
 playlistPageLength = 25
 addon = xbmcaddon.Addon()
+my_settings_avail={"seed_after":"bool","ask_seed":"bool","del_if_not_seed":"bool","ask_seed_timeout":"int","prefer_dash":"bool","save_path":"string","known_good_webseeds":"string","add_webseeds":"bool","workaround_torrent_add_xs":"bool","confirm_no_seed":"bool","workaround_torrent_generate_magnet":"bool","experimental_status_label":"bool"}
+my_settings_set={}
+for setting in my_settings_avail:
+    if my_settings_avail[setting]=="string":
+        my_settings_set.update({setting:addon.getSetting(setting)})
+    elif my_settings_avail[setting]=="bool":
+        my_settings_set.update({setting:addon.getSettingBool(setting)})
+    elif my_settings_avail[setting]=="int":
+        my_settings_set.update({setting:addon.getSettingInt(setting)})
+if "ask_seed_timeout" in my_settings_set:
+    my_settings_set.update({"ask_seed_timeout":my_settings_set["ask_seed_timeout"]*1000})
+    
 
-class VideoLink:
+try:
+    my_settings_set.update({"known_good_webseeds":my_settings_set['known_good_webseeds'].split(";")})
+except:
+    xbmc.log("fail load webseeds",xbmc.LOGERROR)
+ 
+
+
+class VideoLink(object):
     def __init__(self):
         self.title = None
         self.pageUrl = None
@@ -39,6 +61,64 @@ class VideoLink:
         self.views = None
         self.duration = None
 
+
+    @staticmethod
+    def workaroundAddXS(magnetUrl):
+        magnet_add=""
+        for url_el in magnetUrl.split("&"):
+            if url_el[0:3]=="as=":
+                magnet_add+="&xs="+urllib.parse.unquote(url_el[3:].replace('.mp4','.webtorrent'))
+        xbmc.log(magnet_add,xbmc.LOGERROR)
+        magnetUrl+=magnet_add
+        return magnetUrl
+    @staticmethod
+    def workaroundAddAS(magnetUrl):
+        try:
+            for url_el in magnetUrl.split("&"):
+                if url_el[0:3]=="as=":
+                    path=urllib.parse.unquote(url_el[3:])
+            path=urllib.parse.urlparse(path).path
+            for webseed_url in my_settings_set['known_good_webseeds']:
+                magnetUrl+="&as="+webseed_url+path
+        except:
+            pass
+        return magnetUrl
+    @staticmethod
+    def workaroundGenMagnet(video_url):
+        try:
+            torrent_file_name_tmp=xbmc.translatePath("special://temp")+"bitchute_kodi_tmp.torrent"
+            #xbmc.log(torrent_file_name_tmp,xbmc.LOGERROR)
+            torrent_url=urllib.parse.unquote(video_url.replace('.mp4','.webtorrent'))
+            #xbmc.log(torrent_url,xbmc.LOGERROR)
+            torrent_rq=requests.get(torrent_url)
+            torrent_file_tmp=open(torrent_file_name_tmp,"wb+")
+            torrent_file_tmp.write(torrent_rq.content)
+            torrent_file_tmp.close()
+            
+            
+            execString = 'webtorrent-hybrid info '+torrent_file_name_tmp+''
+            if sys.platform == 'win32':
+                args = execString
+                useShell = True
+            else:
+                args = shlex.split(execString)
+                useShell = False
+                
+            #xbmc.log("run webtorrent , shell: "+str(useShell)+"  args: "+str(args),xbmc.LOGERROR)
+            
+            webTorrentClient=subprocess.Popen(args, shell=useShell, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            
+            torrent_info=json.loads(webTorrentClient.communicate()[0])
+            #xbmc.log("ran webtorrent"+str(wtco),xbmc.LOGERROR)
+            magnet="magnet:?xt=urn:btih:"+torrent_info['infoHash']+"&dn="+torrent_info['name']
+            for tracker in torrent_info['announce']:
+                magnet+="&tr="+tracker
+            magnet+="&xs="+torrent_url+"&as="+video_url
+            return magnet
+            #xbmc.log("loads webtorrent",xbmc.LOGERROR)
+            #xbmc.log(str(magnet),xbmc.LOGERROR)
+        except:
+            return False
     @staticmethod
     def getUrl(videoId):
         req = fetchLoggedIn(baseUrl + "/video/" + videoId)
@@ -50,7 +130,8 @@ class VideoLink:
         raise ValueError("Could not find the magnet link for this video.")
     @staticmethod
     def getInfo(videoId):
-        req = fetchLoggedIn(baseUrl + "/video/" + videoId)
+        #req = fetchLoggedIn(baseUrl + "/video/" + videoId)
+        req = requests.get(baseUrl + "/video/" + videoId)
         soup = BeautifulSoup(req.text, 'html.parser')
         title=soup.title.string
         try:
@@ -77,9 +158,27 @@ class VideoLink:
         for link in soup.findAll("a", href=re.compile("^magnet")):
             magnetUrl = link.get("href")
             if magnetUrl.startswith("magnet:?"):
+                if "add_webseeds" in my_settings_set and my_settings_set["add_webseeds"]:
+                        magnetUrl=VideoLink.workaroundAddAS(magnetUrl)
+                if "workaround_torrent_add_xs" in my_settings_set and my_settings_set["workaround_torrent_add_xs"]:
+                    magnetUrl=VideoLink.workaroundAddXS(magnetUrl)
+
                 return {'magnetUrl':magnetUrl,'title':title , 'poster':poster , 'artist':artist , 'mpd_url':mpd_url}
         try:
-            return {'WebseedUrl':soup.findAll("video")[0].source.get("src"),'title':title , 'poster':poster , 'artist':artist , 'mpd_url':mpd_url}
+            webseed_url=soup.findAll("video")[0].source.get("src")
+            if "workaround_torrent_generate_magnet" in my_settings_set and my_settings_set["workaround_torrent_generate_magnet"]:
+                try:
+                    magnetUrl=VideoLink.workaroundGenMagnet(webseed_url)
+                    if magnetUrl:
+                        if "add_webseeds" in my_settings_set and my_settings_set["add_webseeds"]:
+                            magnetUrl=VideoLink.workaroundAddAS(magnetUrl)
+                        if "workaround_torrent_add_xs" in my_settings_set and my_settings_set["workaround_torrent_add_xs"]:
+                            magnetUrl=VideoLink.workaroundAddXS(magnetUrl)
+                        return {'WebseedUrl':webseed_url,'magnetUrl':magnetUrl,'title':title , 'poster':poster , 'artist':artist , 'mpd_url':mpd_url}
+                except Exception as e:
+                    xbmc.log(str(e),xbmc.LOGERROR)
+                    pass
+            return {'WebseedUrl':webseed_url,'title':title , 'poster':poster , 'artist':artist , 'mpd_url':mpd_url}
         except:
             try:
                 if req.text.find("sourceMP4.src")==-1:
@@ -178,7 +277,7 @@ class VideoLink:
             videos.append(VideoLink.getVideoFromPlaylist(container))
         return videos
 
-class Channel:
+class Channel(object):
     def __init__(self, channelName, pageNumber = None, thumbnail = None):
         self.channelName = channelName
         self.videos = []
@@ -218,7 +317,7 @@ class Channel:
         if len(self.videos) >= 10:
             self.hasNextPage = True
 
-class Playlist:
+class Playlist(object):
     def __init__(self):
         self.name = None
         self.id = None
@@ -274,9 +373,16 @@ class MyPlayer(xbmc.Player):
         xbmc.sleep(s) 
 def login():
     #BitChute uses a token to prevent csrf attacks, get the token to make our request.
-    r = requests.get(baseUrl)
+    try:
+        import cfscrape
+        scraper = cfscrape.create_scraper()
+        r = scraper.get(baseUrl)
+        xbmc.log("got cfscrape\n",xbmc.LOGERROR)
+    except:
+        r = requests.get(baseUrl)
     csrfJar = r.cookies
     soup = BeautifulSoup(r.text, 'html.parser')
+    #xbmc.log(r.text,xbmc.LOGERROR)
     csrftoken = soup.findAll("input", {"name":"csrfmiddlewaretoken"})[0].get("value")
 
     #Fetch the user info from settings
@@ -306,10 +412,15 @@ def getSessionCookie():
     
     #If our cookies have expired we'll need to get new ones.
     now = int(time.time())
-    for cookie in cookies:
-        if now >= cookie['expires']:
+    try:
+     for cookie in cookies:
+        if cookie['expires']!=None and now >= cookie['expires']:
             cookies = login()
             break
+    except:
+        xbmc.log("cookies:  "+str(cookies),xbmc.LOGERROR)
+        cookies = login()
+        xbmc.log("cookies:  "+str(cookies),xbmc.LOGERROR)
     
     jar = requests.cookies.RequestsCookieJar()
     for cookie in cookies:
@@ -388,6 +499,12 @@ def defaultMenu():
     subscriptionsUrl = '{0}?action=subscriptions'.format(_url)
     listing.append((subscriptionsUrl, subscriptions, True))
     
+    
+    settings_item = xbmcgui.ListItem(label="Settings")
+    settings_item.setInfo('',{'title': "Settings"})
+    settings_item_url = '{0}?action=settings'.format(_url)
+    listing.append((settings_item_url, settings_item, True))
+    
     #add our listing to kodi
     xbmcplugin.addDirectoryItems(_handle, listing, len(listing))
     xbmcplugin.addSortMethod(_handle, xbmcplugin.SORT_METHOD_UNSORTED)
@@ -433,7 +550,10 @@ def listCategories():
     # Iterate through categories
     for category in categories:
         # Create a list item with a text label and a thumbnail image.
-        list_item = xbmcgui.ListItem(label=category.channelName, thumbnailImage=category.thumbnail)
+        if sys.version_info>=(3,0):
+            list_item = xbmcgui.ListItem(label=category.channelName)
+        else:
+            list_item = xbmcgui.ListItem(label=category.channelName, thumbnailImage=category.thumbnail)
         # Set a fanart image for the list item.
         # Here we use the same image as the thumbnail for simplicity's sake.
         list_item.setProperty('fanart_image', category.thumbnail)
@@ -511,7 +631,10 @@ def listVideos(categoryName, pageNumber = None, offset = 0, lastVid = '0'):
     for video in videos:
         duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+((int(video.duration.split(':')[-3])*3600) if len(video.duration.split(':')) == 3 else 0)
         # Create a list item with a text label and a thumbnail image.
-        list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
+        if sys.version_info>=(3,0):
+            list_item = xbmcgui.ListItem(label=video.title)
+        else:
+            list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         # Set a fanart image for the list item.
         # Here we use the same image as the thumbnail for simplicity's sake.
         list_item.setProperty('fanart_image', category.thumbnail)
@@ -582,7 +705,10 @@ def listSubscriptionVideos(pageNumber, offset, lastVid):
     
     for video in videos:
         duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+((int(video.duration.split(':')[-3])*3600) if len(video.duration.split(':')) == 3 else 0)
-        list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
+        if sys.version_info>=(3,0):
+            list_item = xbmcgui.ListItem(label=video.title)
+        else:
+            list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         list_item.setProperty('fanart_image', channelThumbnailFromChannels(video.channelName, channels))
         list_item.setInfo('video', {'title': video.title, 'genre': video.title, 'duration': duration, 'plot': '[CR][B][UPPERCASE]'+video.channelName+'[/UPPERCASE][/B][CR][CR]Views: '+video.views+'[CR]Duration: '+video.duration+'[CR][CR]'+video.title})
         list_item.setArt({'landscape': video.thumbnail})
@@ -607,7 +733,7 @@ def listSubscriptionVideos(pageNumber, offset, lastVid):
     xbmcplugin.endOfDirectory(_handle)
 
 def playWebseed(videoInfo,message=None,duration=0,prefer_dash=False):
-    if videoInfo.has_key("magnetUrl"):
+    if "magnetUrl" in videoInfo:
         import random
         webseeds=[]
         for url_el in videoInfo['magnetUrl'].split("&"):
@@ -615,7 +741,7 @@ def playWebseed(videoInfo,message=None,duration=0,prefer_dash=False):
                 webseeds.append(url_el[3:])
         import random
         dlnaUrl=random.choice(webseeds)
-    elif videoInfo.has_key("WebseedUrl"):
+    elif "WebseedUrl" in videoInfo:
         dlnaUrl=videoInfo['WebseedUrl']
     xbmc.log("playing from webseed: "+dlnaUrl,xbmc.LOGERROR)
     seed_after=False
@@ -632,7 +758,7 @@ def playVideo(videoId):
     xbmc.log("prefer_dash : "+str(prefer_dash),xbmc.LOGERROR)
     playing = 0
     # start webtorrent fetching path
-    if not videoInfo.has_key("magnetUrl"):
+    if "magnetUrl" not in videoInfo:
         return playWebseed(videoInfo,message='Unable to find Magnet link.',duration=15,prefer_dash=prefer_dash)
     output = ""
     cnt = 0
@@ -640,7 +766,7 @@ def playVideo(videoId):
     save_path=""
     try:
         save_path = xbmcplugin.getSetting(_handle, 'save_path')
-        if len(save_path)>0:
+        if xbmcplugin.getSetting(_handle, 'save')=="true" and len(save_path)>0  :
             xbmc.log("saving to: "+save_path,xbmc.LOGERROR)
             save_path= " -o "+save_path
         else:
@@ -648,6 +774,7 @@ def playVideo(videoId):
     except:
         pass
     seed_after=xbmcplugin.getSetting(_handle, 'seed_after') == "true" # for some reason we can't get settings in playWithCustomPlayer()
+
     execString = 'webtorrent-hybrid "' +  videoInfo['magnetUrl'] + '" --dlna'+save_path
     if sys.platform == 'win32':
         args = execString
@@ -667,11 +794,11 @@ def playVideo(videoId):
     has_verifying_dialog=False
     
     for stdout_line in iter(webTorrentClient.stdout.readline,b''): ## iter because of a read-ahead bug , as described here : https://stackoverflow.com/questions/2715847/read-streaming-input-from-subprocess-communicate/17698359#17698359
-        xbmc.log("webtorrent:  "+stdout_line,xbmc.LOGERROR)
-        if "fetching torrent metadata from" in stdout_line:
+        xbmc.log("webtorrent:  "+stdout_line.decode(),xbmc.LOGERROR)
+        if "fetching torrent metadata from" in stdout_line.decode():
             xbmc.log("Fetching metadata.",xbmc.LOGERROR)
             import threading
-            metadata_timer=threading.Timer(15.0,webTorrentClient.kill)
+            metadata_timer=threading.Timer(25.0,webTorrentClient.kill)
             metadata_timer.start()
             xbmc.log("Started timer " + str(webTorrentClient.pid),xbmc.LOGERROR)
             has_metadata_timer=True
@@ -680,7 +807,7 @@ def playVideo(videoId):
             has_metadata_timer=False
             xbmc.log("Fetched metadata, timer canceled.",xbmc.LOGERROR)
 
-        if "verifying existing torrent data..." in stdout_line:
+        if "verifying existing torrent data..." in stdout_line.decode():
             verifying_dialog = xbmcgui.DialogProgressBG()
             verifying_dialog.create('Verifying data',"Verifying existing torrent data...")
             has_verifying_dialog=True
@@ -699,6 +826,7 @@ def playVideo(videoId):
             break
         
     if has_metadata_timer:
+        xbmc.log("magnet link: \n " + videoInfo['magnetUrl'] +" \n  failed ",xbmc.LOGERROR)
         return playWebseed(videoInfo,message='Fetching torrent metadata timed out, playing from webseed',duration=10,prefer_dash=prefer_dash)
 
     dlnaMatches = re.search('http:\/\/((\w|\d)+(\.)*)+:\d+\/\d+', output)
@@ -717,16 +845,18 @@ def playVideo(videoId):
             playing = 1
             playWithCustomPlayer(dlnaUrl, webTorrentClient,videoInfo, seed_after)
 
+
 def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_after=False,title_with_progress=True,prefer_dash=False):
-    xbmc.log(videoInfo['title'].encode('utf-8'),xbmc.LOGERROR)
+    #xbmc.log(str(videoInfo['title'].encode('utf-8')),xbmc.LOGERROR)
+    #if webTorrentClient!=None :
+        #time.sleep(5)
     if webTorrentClient==None and prefer_dash  and 'mpd_url' in videoInfo and videoInfo['mpd_url']!="":
         url=videoInfo['mpd_url']
-        play_item = xbmcgui.ListItem(path=url)
+        play_item = xbmcgui.ListItem(path=url)#+ '|verifypeer=false')
         play_item.setProperty('inputstreamaddon', 'inputstream.adaptive')
         play_item.setProperty('inputstream.adaptive.manifest_type', 'mpd')
     else:
-        import urllib
-        play_item = xbmcgui.ListItem(path=urllib.unquote(url))
+        play_item = xbmcgui.ListItem(path=urllib.parse.unquote(url))#+ '|verifypeer=false')
 
     xbmc.log("playing url: "+str(url),xbmc.LOGERROR)
     try:
@@ -751,7 +881,29 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
     webtorrent_seeding=False
     old_title=videoInfo['title']
     new_title=videoInfo['title']
-    #player.updateInfoTag(play_item)
+    vid_file={"dir":None,"file":None}
+    ask_seed_answered=False
+    added_ctrls=[]
+    if webTorrentClient!=None :
+        if "experimental_status_label" in my_settings_set and my_settings_set["experimental_status_label"]:
+            window_h=xbmcgui.Window(12901)
+            webtorrent_status_label=xbmcgui.ControlLabel(0, 0, 400, 25, 'Status', textColor='0xFFFFFFFF')
+            window_h.addControl(webtorrent_status_label)
+            added_ctrls.append({'window':window_h,'label':webtorrent_status_label})
+
+        if "ask_seed" in my_settings_set and my_settings_set["ask_seed"]:
+            if sys.version_info>=(3,0):
+                dia=xbmcgui.Dialog().yesno(heading="Seed?",message="Seed?",autoclose=my_settings_set["ask_seed_timeout"])
+            else:
+                dia=xbmcgui.Dialog().yesno(heading="Seed?",line1="Seed?",autoclose=my_settings_set["ask_seed_timeout"])
+            ask_seed_answered=True
+            my_settings_set.update({"ask_seed_answered":True})
+            xbmc.log("seed_dia: " + str(dia),xbmc.LOGERROR)
+            if dia:
+                seed_after=True
+            else:
+                seed_after=False
+
     while player.is_active:
         if not webtorrent_seeding and title_with_progress:
             webtorrent_progress_lines=20
@@ -760,16 +912,46 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
                     break
                 else:
                     webtorrent_progress_lines-=1
-                if "Seeding:" in stdout_line:
+                if "Seeding:" in stdout_line.decode():
                     webtorrent_seeding=True
                     play_item.setInfo("video",{'title':videoInfo['title'] , 'artist':[videoInfo['artist']]})
+                    file_m=re.match(".*Seeding: \\x1b\[39m\\x1b\[1m(?P<file>.*)\\x1b\[22m",stdout_line.decode())
+                    if file_m:
+                        vid_file["file"]=file_m.groupdict()["file"]
                     try:
                         player.updateInfoTag(play_item)
+                        if  "experimental_status_label" in my_settings_set and my_settings_set["experimental_status_label"]:
+                            webtorrent_status_label.setLabel("Downloaded")
+                            window_h.removeControl(webtorrent_status_label)
                     except:
                         pass
                     xbmc.log("Webtorrent: seeding",xbmc.LOGERROR) 
+                    if seed_after :
+                        seedExecString = 'webtorrent-desktop "' +  videoInfo['magnetUrl'] +'" '
+                        xbmc.log("webtorrent desktop cmd: "+seedExecString,xbmc.LOGERROR)
+                        if sys.platform == 'win32':
+                            args = seedExecString
+                            useShell = True
+                        else:
+                            args = shlex.split(seedExecString)
+                            useShell = False
+
+                        try:
+                            s=subprocess.Popen(args, shell=useShell)
+                        except:
+                            pass
+
+
+
                 else:
-                    webtorrent_progress=re.match(".*Speed: \\x1b\[39m\\x1b\[1m(?P<speed>.*)\\x1b\[22m .*Downloaded:\\x1b\[39m \\x1b\[1m(?P<progress>.*)\\x1b\[22m/\\x1b\[1m(?P<size>.*)\\x1b\[22m .*Uploaded:.*",stdout_line)
+                    webtorrent_progress=re.match(".*Speed: \\x1b\[39m\\x1b\[1m(?P<speed>.*)\\x1b\[22m .*Downloaded:\\x1b\[39m \\x1b\[1m(?P<progress>.*)\\x1b\[22m/\\x1b\[1m(?P<size>.*)\\x1b\[22m .*Uploaded:.*",stdout_line.decode())
+                    dir_m=re.match(".*Downloading to: \\x1b\[39m\\x1b\[1m(?P<dir>.*)\\x1b\[22m",stdout_line.decode())
+                    if dir_m:
+                        vid_file["dir"]=dir_m.groupdict()["dir"]
+                    file_m=re.match(".*Downloading: \\x1b\[39m\\x1b\[1m(?P<file>.*)\\x1b\[22m",stdout_line.decode())
+                    if file_m:
+                        vid_file["file"]=file_m.groupdict()["file"]
+
                     #xbmc.log("Webtorrent stdout_line: "+stdout_line,xbmc.LOGERROR) 
                     #xbmc.log("Webtorrent stdout_line repr: "+repr(stdout_line),xbmc.LOGERROR) 
                     #xbmc.log("Webtorrent: progress_re: "+str(webtorrent_progress),xbmc.LOGERROR) 
@@ -785,26 +967,48 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
                             play_item.setInfo("video",{'title': new_title , 'artist':[videoInfo['artist']]})
                             try:
                                 player.updateInfoTag(play_item)
+                                if  "experimental_status_label" in my_settings_set and my_settings_set["experimental_status_label"]:
+                                    webtorrent_status_label.setLabel("Downloading: ["+webtorrent_progress['progress']+"/"+webtorrent_progress['size']+"@"+webtorrent_progress['speed']+"]")
                             except:
+                                xbmc.log(" Update info exception",xbmc.LOGERROR)
                                 pass
                         if webtorrent_seeding:
                             xbmc.log("Webtorrent: seeding , should no longer process output",xbmc.LOGERROR) 
                             play_item.setInfo("video",{'title':videoInfo['title'] , 'artist':[videoInfo['artist']]})
                             try:
                                 player.updateInfoTag(play_item)
+                                if  "experimental_status_label" in my_settings_set and my_settings_set["experimental_status_label"]:
+                                    webtorrent_status_label.setLabel("Downloaded")
+                                    window_h.removeControl(webtorrent_status_label)
                             except:
                                 pass
                             break
             xbmc.log("player.sleep",xbmc.LOGERROR) 
-
         player.sleep(100)
 
-    try:
-        webTorrentClient.terminate()
-    except:
-        pass
+    xbmc.log(str(vid_file),xbmc.LOGERROR)
+    for ctrl in added_ctrls:
+        try:
+            ctrl['window'].removeControl(ctrl['label'])
+        except Exception as e:
+            xbmc.log(str(e),xbmc.LOGERROR)
+        
+    if webTorrentClient!=None and "ask_seed" in my_settings_set and my_settings_set["ask_seed"] and ( ( seed_after and not ask_seed_answered ) or ( not seed_after and "confirm_no_seed" in my_settings_set and my_settings_set["confirm_no_seed"]) ):
+        if sys.version_info>=(3,0):
+           dia=xbmcgui.Dialog().yesno(heading="Seed?",message="Seed?",autoclose=my_settings_set["ask_seed_timeout"])
+        else:
+           dia=xbmcgui.Dialog().yesno(heading="Seed?",line1="Seed?",autoclose=my_settings_set["ask_seed_timeout"])
+ 
+        xbmc.log("seed_dia: " + str(dia),xbmc.LOGERROR)
+        my_settings_set.update({"ask_seed_answered":True})
+        if dia:
+            seed_after=True
+        else:
+            seed_after=False 
+
     if seed_after :
         seedExecString = 'webtorrent-desktop "' +  videoInfo['magnetUrl'] +'" '
+        xbmc.log("webtorrent desktop cmd: "+seedExecString,xbmc.LOGERROR)
         if sys.platform == 'win32':
             args = seedExecString
             useShell = True
@@ -818,7 +1022,28 @@ def playWithCustomPlayer(url, webTorrentClient,videoInfo={'magnetUrl':""},seed_a
             dialog = xbmcgui.Dialog()
             dialog.notification('Not seeding','Unable to start webtorrent-desktop.',xbmcgui.NOTIFICATION_INFO, 10000)
             xbmc.log("webtorrent desktop exception",xbmc.LOGERROR)
+
+        try:
+            webTorrentClient.terminate()
+            xbmc.log("settings: ",xbmc.LOGERROR)
+            xbmc.log("settings: "+str(my_settings_set),xbmc.LOGERROR)
+        except:
+            pass
+
     else:
+        try:
+            webTorrentClient.terminate()
+        except:
+            pass
+        if vid_file["dir"] and vid_file["file"] and "del_if_not_seed" in my_settings_set and my_settings_set["del_if_not_seed"]:
+            xbmc.log(" rm "+vid_file["dir"]+"/"+vid_file["file"],xbmc.LOGERROR)
+            try:
+                import os
+                os.unlink(vid_file["dir"]+"/"+vid_file["file"])
+            except:
+                xbmc.log(" unlik error for "+vid_file["dir"]+"/"+vid_file["file"],xbmc.LOGERROR)
+        else:
+            xbmc.log("  nothing to rm ",xbmc.LOGERROR)
         xbmc.log("not seeding",xbmc.LOGERROR)
 
 def addVideosPlaylist(playlistId, videoId):
@@ -876,6 +1101,8 @@ def router(paramstring):
             addVideosPlaylist(params['playlistId'], params['videoId'])
         elif params['action'] == 'remplaylist':
             remVideosPlaylist(params['playlistId'], params['videoId'])
+        elif params['action'] == 'settings':
+            addon.openSettings()
     else:
         # If the plugin is called from Kodi UI without any parameters,
         # display the list of video categories

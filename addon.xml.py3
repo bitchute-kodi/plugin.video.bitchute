@@ -4,7 +4,7 @@ version="0.0.1"
 name="BitChute(alpha)"
 provider-name="jasonfrancis">
 <requires>
-  <import addon="xbmc.python" version="2.14.0"/>
+  <import addon="xbmc.python" version="3.0.0"/>
   <import addon="script.module.requests" version="2.12.4"/>
   <import addon="script.module.beautifulsoup4" version="4.5.3"/>
   <import addon="script.module.future" version="0.17.1" />
