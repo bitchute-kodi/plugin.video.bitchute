@@ -515,7 +515,11 @@ def listPlaylists():
     playlists = Playlist.getPlaylists()
 
     for playlist in playlists:
-        list_item = xbmcgui.ListItem(label=playlist.name, thumbnailImage=playlist.thumbnail)
+        if sys.version_info>=(3,0):
+            list_item = xbmcgui.ListItem(label=playlist.name)
+            list_item.setArt({ 'thumb': playlist.thumbnail })
+        else:
+            list_item = xbmcgui.ListItem(label=playlist.name, thumbnailImage=playlist.thumbnail)
         list_item.setProperty('fanart_image', playlist.thumbnail)
         list_item.setInfo('video', {'title': playlist.name, 'genre': playlist.name})
         url = '{0}?action=playlist&playlistId={1}'.format(_url, playlist.id)
@@ -591,7 +595,11 @@ def listVideosPlaylist(playlistId, pageNumber = None):
     videos = VideoLink.getVideosByPlaylist(playlistId, pageNumber-1)
     for video in videos:
         duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+((int(video.duration.split(':')[-3])*3600) if len(video.duration.split(':')) == 3 else 0)
-        list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
+        if sys.version_info>=(3,0):
+            list_item = xbmcgui.ListItem(label=video.title)
+            list_item.setArt({ 'thumb': video.thumbnail })
+        else:
+            list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         # Set a fanart image for the list item.
         # Here we use the same image as the thumbnail for simplicity's sake.
         list_item.setProperty('fanart_image', video.thumbnail)
@@ -633,6 +641,7 @@ def listVideos(categoryName, pageNumber = None, offset = 0, lastVid = '0'):
         # Create a list item with a text label and a thumbnail image.
         if sys.version_info>=(3,0):
             list_item = xbmcgui.ListItem(label=video.title)
+            list_item.setArt({ 'thumb': video.thumbnail })
         else:
             list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         # Set a fanart image for the list item.
@@ -707,6 +716,7 @@ def listSubscriptionVideos(pageNumber, offset, lastVid):
         duration = int(video.duration.split(':')[-1])+int(video.duration.split(':')[-2])*60+((int(video.duration.split(':')[-3])*3600) if len(video.duration.split(':')) == 3 else 0)
         if sys.version_info>=(3,0):
             list_item = xbmcgui.ListItem(label=video.title)
+            list_item.setArt({ 'thumb': video.thumbnail })
         else:
             list_item = xbmcgui.ListItem(label=video.title, thumbnailImage=video.thumbnail)
         list_item.setProperty('fanart_image', channelThumbnailFromChannels(video.channelName, channels))
